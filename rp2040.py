@@ -86,7 +86,15 @@ def disassemble(pc, value):
             return "sub imm A6-164"
         return "A5-79"
     elif c == 0b010000:
-        return "A5-80"
+        # 00xx       Add Registers          ADD (register) on page A6-102
+        # 0100       UNPREDICTABLE          -
+        # 0101, 011x Compare Registers      CMP (register) on page A6-118
+        # 10xx       Move Registers         MOV (register) on page A6-140
+        # 110x       Branch and Exchange    BX on page A6-115
+        # 111x       Branch with Link 
+        #            and Exchange           BLX (register) on page A6
+        c = bits(9,6,opcode)
+        return "A5-80 {0:04b}".format(c)
     elif c ==0b010001:
         return "A5-81"
     elif bits(5,1,c) == 0b01001:
@@ -170,11 +178,11 @@ assert bits(15, 10, 0xff00) == 0b111111
 assert get_imm5(0x04ad) == 18
 assert get_imm5(0x6265)<<2 == 36
 
-code = IntelHex("/home/tony/p/rp2040js/src/blink.hex")
+code = IntelHex("./blink.hex")
 
 MEMSTART = code.start_addr['EIP']
 prev = ""
-for pc in range(code.minaddr(), code.maxaddr(), 2):
+for pc in range(code.minaddr()+0x370,code.minaddr()+0x400, 2): # code.maxaddr()
     if prev =="(32-bit)":
         bl = get_bl(pc+2, opcode, bytes_to_halfword(code, pc))
         print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,bytes_to_halfword(code, pc),get_opcode(opcode), bl))
