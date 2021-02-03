@@ -139,6 +139,7 @@ def disassemble(pc, halfword):
             return "subs imm A6-164"
         return "A5-79"
     elif c == 0b010000:
+<<<<<<< HEAD
         """
         opcode  Instruction                 See
         0000    Bitwise AND                 AND (register) on page A6-107
@@ -223,6 +224,23 @@ def disassemble(pc, halfword):
             get_one_register(halfword), (halfword & 0xff) << 2)
     elif bits(5, 3, c) in (0b011, 0b100) or bits(5, 2, c) == 0b0101:
         opA, opB = ops = get_opA_opB(halfword)
+=======
+        # 00xx       Add Registers          ADD (register) on page A6-102
+        # 0100       UNPREDICTABLE          -
+        # 0101, 011x Compare Registers      CMP (register) on page A6-118
+        # 10xx       Move Registers         MOV (register) on page A6-140
+        # 110x       Branch and Exchange    BX on page A6-115
+        # 111x       Branch with Link 
+        #            and Exchange           BLX (register) on page A6
+        c = bits(9,6,opcode)
+        return "A5-80 {0:04b}".format(c)
+    elif c ==0b010001:
+        return "A5-81"
+    elif bits(5,1,c) == 0b01001:
+        return "A6-127"
+    elif bits(5,3,c) in (0b011, 0b100) or bits(5,2,c)==0b0101:
+        ops = get_opA_opB(value)
+>>>>>>> d3d542e032b2b5970cb39e80dcf43590610ec2b9
         if ops == (0b0101, 0b000):
             return "str unimplemented form"
         elif ops == (0b0110, 0b001):
@@ -344,10 +362,19 @@ assert get_imm5(0x04ad) == 0b10010
 assert get_imm5_ext(0x04ad, 0b10) == 0b1010010
 assert get_imm5(0x6265) << 2 == 36
 
+<<<<<<< HEAD
+=======
+code = IntelHex("./blink.hex")
+>>>>>>> d3d542e032b2b5970cb39e80dcf43590610ec2b9
 
 prev = ""
+<<<<<<< HEAD
 for pc in range(start, start + 2 * num_instructions, 2):  # code.maxaddr()
     if prev == "(32-bit)":
+=======
+for pc in range(code.minaddr()+0x370,code.minaddr()+0x400, 2): # code.maxaddr()
+    if prev =="(32-bit)":
+>>>>>>> d3d542e032b2b5970cb39e80dcf43590610ec2b9
         bl = get_bl(pc+2, opcode, bytes_to_halfword(code, pc))
         print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,
                                                             bytes_to_halfword(code, pc), get_opcode(opcode), bl))
