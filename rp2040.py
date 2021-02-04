@@ -255,6 +255,7 @@ def disassemble(pc, halfword):
         if halfword < 0b100000:
             # MOVS A5-140
             # setting flags, if simulating
+            # not entered any time in bootrom
             setflag = True
             return "MOVS A5-140"
         elif halfword >> 8 == 0b1000110:
@@ -417,7 +418,6 @@ def get_bl(pc, ins1, ins2):
         sysM = ins2 & 0xf
         return "msr {}, r{}".format(sysR[sysM], ins1 & 0b111)
     return "To be implemented"
-
 
 assert get_opcode(0xff00) == 0b111111
 assert bits(15, 10, 0xff00) == 0b111111
