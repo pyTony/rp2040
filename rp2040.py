@@ -1,10 +1,11 @@
 from intelhex import IntelHex
 HEXFILE = "./hello_uart.hex"
+OUTPUT = "./my_asm_.s"
 
 code = IntelHex(HEXFILE)
 # for blink.hex + 0x000000ee # looked from bootrom.dis
 start = code.minaddr() + 0x370
-num_instructions = 100
+num_instructions = 1000
 
 cond = "eq ne cs cc mi pl vs vc hi ls ge lt gt le".split() + [""]
 assert cond[-1] == ""
@@ -346,14 +347,18 @@ assert get_imm5(0x6265) << 2 == 36
 
 
 prev = ""
-for pc in range(start, start + 2 * num_instructions, 2):  # code.maxaddr()
-    if prev == "(32-bit)":
-        bl = get_bl(pc+2, opcode, bytes_to_halfword(code, pc))
-        print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,
-                                                            bytes_to_halfword(code, pc), get_opcode(opcode), bl))
-        prev = ""
-    else:
-        opcode = bytes_to_halfword(code, pc)
-        prev = disassemble(pc, opcode)
-        print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,
-                                                            opcode, get_opcode(opcode), prev))
+f = open(OUTPUT, "w+" )
+with f as outfile:
+    for pc in range(start, start + 2 * num_instructions, 2):  # code.maxaddr()
+        if prev == "(32-bit)":
+            bl = get_bl(pc+2, opcode, bytes_to_halfword(code, pc))
+            print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,
+                        bytes_to_halfword(code, pc), get_opcode(opcode), bl),
+                  file = outfile)
+            prev = ""
+        else:
+            opcode = bytes_to_halfword(code, pc)
+            prev = disassemble(pc, opcode)
+            print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,
+                            opcode, get_opcode(opcode), prev),
+                  file=outfile)
