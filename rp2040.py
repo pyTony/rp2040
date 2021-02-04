@@ -50,6 +50,7 @@ def bytes_to_halfword(mem, addr, bigendian=True):
 
 
 def get_register_list(halfword):
+    """ interpret the low byte as list of registers """
     registers, register_list = halfword & 0xff, []
     for reg in range(8):
         if registers & 1:
@@ -136,24 +137,24 @@ def disassemble(pc, halfword):
             return "(32-bit)"
         elif opc >> 1 == 0b011100:
             # 00000106 e793 1110011110010011 111001 e793 b.n	30 <_dead>
-            imm11 = bits(10, 0, opcode) << 1
+            imm11 = bits(10, 0, halfword) << 1
             if imm11 & (1 << 11):
-                imm11 = (imm11 & 0x7ff) - 0x800  # signed two's complement
+                imm11=(imm11 & 0x7ff) - 0x800  # signed two's complement
             pc += imm11 + 4
             return "b.n  {0:x}".format(pc)
         else:
             # 00000106 e793 1110011110010011 111001 e793 b.n	30 <_dead>
             return "other {0:06b}".format(opc)
     elif (opc >> 1) == 0b11100:
-        imm11 = bits(10, 0, opcode) << 1
+        imm11=bits(10, 0, opc) << 1
         if imm11 & (1 << 11):
-            imm11 = (imm11 & 0x7ff) - 0x800  # signed two's complement
+            imm11=(imm11 & 0x7ff) - 0x800  # signed two's complement
 
         pc += imm11 + 4
         return "b.n  {0:x}".format(pc)
 
     elif opc < 0b10000:
-        opc = bits(13, 9, halfword)  # also bit 9
+        opc=bits(13, 9, halfword)  # also bit 9
 
         if opc == 0b1100:
             # 114:	1840 0001100001000000     	adds	r0, r0, r1
@@ -165,20 +166,23 @@ def disassemble(pc, halfword):
         elif opc == 0b01111:
             return "subs  r{0}, r{1}, #{2}   ;0x{2:x}".format(*get_two_registers(halfword), get_imm3(halfword))
         opc >>= 2  # last bits do not matter for others
-##        print("c>>2 = {0:08b}".format(c))
-        two_reg = get_two_registers(halfword)
+# print("c>>2 = {0:08b}".format(c))
+        two_reg=get_two_registers(halfword)
         if opc == 0:
             if bits(10, 6, halfword) == 0:
                 # A6-140
-                start = "nop     ; " if two_reg[0] == two_reg[1] else ""
+                start="nop     ; " if two_reg[0] == two_reg[1] else ""
                 return start + "movs {}".format(', '.join('r%i' % n for n in two_reg))
             else:
                 # A6-135
-                return "lsls {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), get_imm5(halfword))
+                return "lsls  {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), get_imm5(halfword))
         elif opc == 0b001:
+            ## NEED FIXING
             # does not get 142:	0849      	lsrs	r1, r1, #1
             # A6-137
-            return "lsrs  {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), sign_extend(get_imm5_ext(halfword, 0b01), 5))
+            lsrs = get_imm5(halfword)
+            lsrs = lsrs or 32 # zero becomes 32
+            return "lsrs  {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), lsrs)
         elif opc == 0b010:
             # A6-108
             return "asr   {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), get_imm5_ext(halfword, 0b10))
@@ -192,7 +196,7 @@ def disassemble(pc, halfword):
             # 336:	0011000000011010 001100  301a    	adds	r0, #26
             return "adds r{0}, #{1}  ; 0x{1:02x}".format(get_one_register(halfword), get_imm8(halfword))
         elif opc == 0b111:
-            return "subs imm A6-164"
+           return "subs r{0}, #{1}  ; 0x{1:02x}".format(get_one_register(halfword), get_imm8(halfword))
         return "A5-79"
     elif opc == 0b010000:
         """
@@ -214,8 +218,8 @@ def disassemble(pc, halfword):
         1110    Bit Clear                   BIC (register) on page A6-111
         1111    Bitwise NOT                 MVN (register) on page A6-144
         """
-        opc = bits(9, 6, halfword)
-        operation = (
+        opc=bits(9, 6, halfword)
+        operation=(
             'ands eors lsl lsr ars adc sbc ror tst rsb cmp cmn orr muls bic mvn'.split())
         # check the rest conform, two first ones checked
         return "{}  r{}, r{}".format(operation[opc], *get_two_registers(halfword))
@@ -236,19 +240,19 @@ def disassemble(pc, halfword):
         011x
         10xx    Move Registers         MOV (register) on page A6-140
         110x    Branch and Exchange    BX on page A6-115
-        111x    Branch with Link 
+        111x    Branch with Link
                 and Exchange           BLX (register) on page A6-114
         """
-        opc = bits(9, 6, halfword)
+        opc=bits(9, 6, halfword)
         if opc == 0b0100:
             return "UNPREDICTABLE"
         elif opc == 0b0101:
             # 0101    Compare Registers      CMP (register) on page A6-118
             # Encoding T2, N = bit7 = 0
-            N = bits(7, 7, halfword)
+            N=bits(7, 7, halfword)
             assert N == 0
-            m = bits(6, 3, halfword)
-            n = bits(2, 0, halfword)
+            m=bits(6, 3, halfword)
+            n=bits(2, 0, halfword)
             return "cmp {}, {}".format(m, n)
 
         opc >>= 1  # discard last bit
@@ -256,17 +260,18 @@ def disassemble(pc, halfword):
             # MOVS A5-140
             # setting flags, if simulating
             # not entered any time in bootrom
-            setflag = True
+            setflag=True
             return "MOVS A5-140"
         elif halfword >> 8 == 0b1000110:
             # MOV with 4 bit m, bit 4 of n is set to bit7 value
-            m = bits(6, 3, halfword)
-            n = (bits(7, 7, halfword) << 3) + bits(2, 0, halfword)
-            start = "nop  ; " if m == n else ""
-            return start+"mov  r{}, r{}".format(m, n)
+            m=bits(6, 3, halfword)
+            n=(bits(7, 7, halfword) << 3) + bits(2, 0, halfword)
+            instr = "mov  r{}, r{}"
+            instr = ("nop  ; (" + instr +")") if m == n else instr
+            return instr.format(m, n)
         elif opc >> 1 == 0:
             # 00xx    Add Registers          ADD (register) on page A6-102
-            rdn, rm = get_two_registers(halfword)
+            rdn, rm=get_two_registers(halfword)
             rdn += bits(7, 7, halfword) << 3
             if rdn == 0b1011 or rm == 0b1011:
                 return "SEE ADD (SP plus register)"
@@ -290,7 +295,7 @@ def disassemble(pc, halfword):
         return "ldr  r{0}, [pc, #{1}] ; 0x{1:04x}".format(
             get_one_register(halfword), (halfword & 0xff) << 2)
     elif bits(15, 10, halfword) == 0b010001:
-        opA, opB = ops = get_opA_opB(halfword)
+        opA, opB=ops=get_opA_opB(halfword)
         # 00xx       Add Registers          ADD (register) on page A6-102
         # 0100       UNPREDICTABLE          -
         # 0101, 011x Compare Registers      CMP (register) on page A6-118
@@ -303,22 +308,22 @@ def disassemble(pc, halfword):
     elif bits(5, 1, opc) == 0b01001:
         return "A6-127"
     elif bits(5, 3, opc) in (0b011, 0b100) or bits(5, 2, opc) == 0b0101:
-        opA, opB = ops = get_opA_opB(halfword)
-        rt = halfword & 0b111
-        rn = (halfword >> 3) & 0b111
-        rm = (halfword >> 6) & 0b111
+        opA, opB=ops=get_opA_opB(halfword)
+        rt=halfword & 0b111
+        rn=(halfword >> 3) & 0b111
+        rm=(halfword >> 6) & 0b111
         if ops == (0b0101, 0b000):
             return "str unimplemented form"
         elif ops == (0b0110, 0b001):
-            imm = get_imm5(halfword) << 2
+            imm=get_imm5(halfword) << 2
             return "str  {0} ; 0x{1:x} imm5".format('r%i, [r%i, #%i]' % (*get_two_registers(halfword), imm), imm)
         elif opA == 0b0110:
-            imm = get_imm5(halfword) << 2
+            imm=get_imm5(halfword) << 2
             # one in highest bit of ops2 means str
-            instruction = "ldr" if ops[1] & 0b100 else "str"
+            instruction="ldr" if ops[1] & 0b100 else "str"
             # 11a:	6038  0110000000111000 011000   str	r0, [r7, #0]
             # fe:	680a  0110100000001010 011010 	ldr	r2, [r1, #0]
-            return instruction + "  {0} ; 0x{1:x} imm8, A6-158".format('r%i, [r%i, #%i]' % (*get_two_registers(halfword), imm), imm)
+            return instruction + "  {0} ; 0x{1:x}".format('r%i, [r%i, #%i]' % (*get_two_registers(halfword), imm), imm)
         elif ops == (0b0101, 0b000):
             return "str r{}, [r{}, r{}]".format(rt, rn, rm)
         elif ops == (0b0101, 0b001):
@@ -336,37 +341,38 @@ def disassemble(pc, halfword):
         elif ops == (0b0101, 0b111):
             return "ldrsh r{}, [r{}, r{}]".format(rt, rn, rm)
         elif ops[0] == 0b0111:
-            instr = "strb" if opB & 1 else "ldrb"
-            two_reg = get_two_registers(halfword)
+            instr="strb" if opB & 1 else "ldrb"
+            two_reg=get_two_registers(halfword)
             return (instr+" r{0}, [r{1}, #{2}]").format(*two_reg, get_imm5(halfword))
         # 0110 1xx Load Register LDR (immediate) on page A6-126
         return "A5-82 {0:04b} {1:03b}".format(*ops)
     # c bit 5  = halfword bit 15 c is bit 15-10
     elif bits(5, 1, opc) == 0b10100:
-        return "A6-106"
+        return "add r{0}, pc, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
     elif bits(5, 1, opc) == 0b10101:
         return "A6-104"
     elif bits(5, 2, opc) == 0b1011:
-        opc = bits(11, 5, opcode)
-        register_list = get_register_list(opcode)
+        opc=bits(11, 5, halfword)
+        register_list=get_register_list(halfword)
         if opc < 0b100:
             return "add SP plus immediate"
         elif opc < 0b1000:
             return "sub SP plus immediate"
         elif opc == 0b0110011:
             return "cps"
-        elif bits(11, 9, opcode) == 0b010:
+        elif bits(11, 9, halfword) == 0b010:
             return "push {%s}" % ', '.join(["r%i" % rn for rn in register_list])
-        elif bits(11, 9, opcode) == 0b110:
-            register_list = get_register_list(opcode)
+        elif bits(11, 9, halfword) == 0b110:
             return "pop {%s}" % ', '.join(["r%i" % rn for rn in register_list])
         else:
             opc >>= 1  # do not care anymore about the last bit
             # partial return, continue HERE
-            codes = {0b001000: "sxth ; a6-169", 0b001001: "sxtb ; a6-168",
+            codes={0b001000: "sxth ; a6-169", 0b001001: "sxtb ; a6-168",
                      0b001010: "uxth ; a6-173", 0b001011: "uxtb ; a6-172",
-                     0b101000: "rev ; a6-150", 0b101001: "revsh ; a6-152",
-                     0b111101: "sev ; a6-156", 0b111100: "wfe ; Wait For Event"}
+                     0b101000: "rev r{}, r{}".format(*get_two_registers(halfword)),
+                     0b101001: "revsh r{}, r{}".format(*get_two_registers(halfword)),
+                     0b111101: "sev ; a6-156", 0b111100: "wfe ; Wait For Event",
+                     0b111000: "bkpt 0x{:04x}".format(get_imm8(halfword)<<2)}
             try:
                 return codes[opc]
             except KeyError:
@@ -375,12 +381,15 @@ def disassemble(pc, halfword):
     elif bits(5, 1, opc) == 0b11000:
         return "ASTM, STMIA, STME A6-157"
     elif bits(5, 1, opc) == 0b11001:
-        return "LDM, LDMIA, LDMFD A6-125"
+        register_list = get_register_list(halfword)
+        excl = "!" if register_list[-1]==14 else ""
+        register_list = register_list[:-1]
+        return "ldmia r%i%s, {%s}" % (get_one_register(halfword), excl,  ', '.join('r%i' % n for n in register_list))
     elif bits(5, 2, opc) == 0b1101:
         # B on page A6-110 case one
-        imm8 = (bits(10, 0, opcode) & 0xff) << 1
+        imm8=(bits(10, 0, halfword) & 0xff) << 1
         # signed two's complement
-        imm8 = sign_extend(imm8, 8)
+        imm8=sign_extend(imm8, 8)
         pc += imm8 + 4
         return "b{0}.n {1:x} ; PC + {2}".format(cond[bits(11, 8, halfword)], pc, imm8 + 4)
     else:
@@ -388,21 +397,21 @@ def disassemble(pc, halfword):
 
 
 def get_bl(pc, ins1, ins2):
-    op1, op2 = bits(10, 4, ins1), bits(14, 12, ins2)
+    op1, op2=bits(10, 4, ins1), bits(14, 12, ins2)
     # A5-85
     if op2 & 0b101 == 0b101:
         # bl A6-113
-        s = bits(10, 10, ins1)
+        s=bits(10, 10, ins1)
 
-        j1, j2 = bits(13, 13, ins2), bits(11, 11, ins2)
+        j1, j2=bits(13, 13, ins2), bits(11, 11, ins2)
         # i1, i2 = j1, j2 #(j1^s)>0, (j2^s)>0
-        imm10 = bits(9, 0, ins1)
-        imm12 = bits(10, 0, ins2) << 1
-        addr = (s << 22) + (imm10 << 12) + imm12
-##        assert "{:010b}{:011b}0".format(imm10,imm11,addr) == "{:022b}".format(addr)
-##        addr += (i1<<22)+(i2<21)
+        imm10=bits(9, 0, ins1)
+        imm12=bits(10, 0, ins2) << 1
+        addr=(s << 22) + (imm10 << 12) + imm12
+# assert "{:010b}{:011b}0".format(imm10,imm11,addr) == "{:022b}".format(addr)
+# addr += (i1<<22)+(i2<21)
         if s:
-            addr = sign_extend(addr, 23)  # signed two's complement
+            addr=sign_extend(addr, 23)  # signed two's complement
         return "bl   {:x}".format(pc+addr)
     elif ins1 >> 4 == 0b111100111000:
         # Move to Special Register from ARM Register
@@ -415,7 +424,7 @@ def get_bl(pc, ins1, ins2):
         # .cc.      Raises the current priority to 0 when set to 1. This is a 1-bit register.16 = 0b00010:000
         # CONTROL   The CONTROL register, see The special-purpose CONTROL register on page B1-189.20 = 0b00010:100
         # -Reserved.Other values
-        sysM = ins2 & 0xf
+        sysM=ins2 & 0xf
         return "msr {}, r{}".format(sysR[sysM], ins1 & 0b111)
     return "To be implemented"
 
@@ -425,12 +434,12 @@ assert get_imm5(0x04ad) == 0b10010
 assert get_imm5_ext(0x04ad, 0b10) == 0b1010010
 assert get_imm5(0x6265) << 2 == 36
 
-prev = ""
-f = open("my_bootrom_start.s", "w+")
+prev=""
+f=open("my_bootrom_start.s", "w+")
 with f as out_file:
     for pc in range(start, start + num_instructions, 2):  # code.maxaddr()
         if prev == "(32-bit)":
-            bl = get_bl(pc+2, opcode, bytes_to_halfword(code, pc))+"\n"
+            bl=get_bl(pc+2, opcode, bytes_to_halfword(code, pc))+"\n"
             print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,
                                                                 bytes_to_halfword(
                                                                     code, pc),
@@ -439,11 +448,11 @@ with f as out_file:
                                                                 bl),
                   file=out_file)
 
-            prev = ""
+            prev=""
         else:
-            opcode = bytes_to_halfword(code, pc)
-            prev = disassemble(pc, opcode)
-            # mnemonic starts with b for branch
+            opcode=bytes_to_halfword(code, pc)
+            prev=disassemble(pc, opcode)
+            # mnemonic starts with b for branch or an nop (probable high byte of data)
             # add newline to clarify blocks
             if prev[0] == 'b' or prev.startswith('nop'):
                 prev += "\n"
