@@ -37,8 +37,6 @@ def bits(start, end, binary_number):
     return binary_number & ((1 << numbits)-1)
 
 # googled function for sign_extend, not used now, using the
-
-
 def sign_extend(opcode, bits):
     sign_bit = 1 << (bits - 1)
     return (opcode & (sign_bit - 1)) - (opcode & sign_bit)
@@ -176,10 +174,8 @@ def disassemble(pc, halfword):
             else:
                 # A6-135
                 return "lsls  {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), get_imm5(halfword))
-        elif opc == 0b001:
-            ## NEED FIXING
-            # does not get 142:	0849      	lsrs	r1, r1, #1
-            # A6-137
+        elif opc == 0b001 :
+           # A6-137
             lsrs = get_imm5(halfword)
             lsrs = lsrs or 32 # zero becomes 32
             return "lsrs  {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), lsrs)
@@ -290,6 +286,7 @@ def disassemble(pc, halfword):
             r = bits(6, 3, halfword)
             instr = "bx lr" if r == 14 else "bx r{}".format(r)
             return instr
+            
         return "A5-81 {0:04b}".format(opc)
     elif bits(5, 1, opc) == 0b01001:
         # ee:	4873   0100100001110011 010010 	ldr	r0, [pc, #460]	; (2bc <async_task_worker_thunk+0x14>)
@@ -353,6 +350,13 @@ def disassemble(pc, halfword):
         elif ops == (0b1001, 0b001):
             rn = "sp" if rn == 0 else "r{}".format(rt)
             return "str r{}, [{}, #{}]".format(rt, rn, get_imm5(halfword))
+        elif ops == (0b1000, 0b100):
+            #This mayby bug in disassembler of Pico cross compiler
+            # 00000fce 884b 1000100001001011 100010 lsrs	r6, r1, #31
+            # online http://shell-storm.org/online/Online-Assembler-and-Disassembler/?opcodes=884b&arch=arm-t&endianness=big&dis_with_addr=True&dis_with_raw=True&dis_with_ins=True#disassembly
+            # 88 4B    ldrh r3, [r1, #2]
+            imm5 = get_imm5(halfword)<<1
+            return "lsrh r{0}, [r{1}, #{2}] ; 0x{2:x}".format(*get_two_registers(halfword), imm5)
         return "A5-82 {0:04b} {1:03b}".format(*ops)
     # c bit 5  = halfword bit 15 c is bit 15-10
     elif bits(5, 1, opc) == 0b10100:
