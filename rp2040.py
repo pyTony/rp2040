@@ -350,7 +350,7 @@ def disassemble(pc, halfword):
             return "strh r{}, [r{}, #{}]".format(rt, rn, get_imm5(halfword) << 1)
         elif ops == (0b1000, 0b101):
             return "ldrh r{}, [r{}, #{}]".format(rt, rn, get_imm5(halfword) << 1)
-        elif ops == 0b1001, 0b001):
+        elif ops == (0b1001, 0b001):
             rn = "sp" if rn == 0 else "r{}".format(rt)
             return "str r{}, [{}, #{}]".format(rt, rn, get_imm5(halfword))
         return "A5-82 {0:04b} {1:03b}".format(*ops)
