@@ -391,7 +391,8 @@ def disassemble(pc, halfword):
                 return "Hint instruction code {0:06b}".format(opc)
         return "A5-83"
     elif bits(5, 1, opc) == 0b11000:
-        return "ASTM, STMIA, STME A6-157"
+        register_list = get_register_list(halfword)
+        return "stmia r%i!, {%s}" % (get_one_register(halfword), ', '.join(register_list))
     elif bits(5, 1, opc) == 0b11001:
         register_list = get_register_list(halfword)
         excl = "!" if register_list[-1]=='lr' else ""
