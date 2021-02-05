@@ -16,6 +16,6 @@ This does not make sense to me
          
 However online http://shell-storm.org/online/Online-Assembler-and-Disassembler/?opcodes=884b&arch=arm-t&endianness=big&dis_with_addr=True&dis_with_raw=True&dis_with_ins=True#disassembly
 
-'# 88 4B    ldrh r3, [r1, #2]
+88 4B    ldrh r3, [r1, #2]
 
 This looks correct! So I implemented this.
