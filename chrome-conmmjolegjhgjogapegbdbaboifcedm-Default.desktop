@@ -1,0 +1,9 @@
+#!/usr/bin/env xdg-open
+[Desktop Entry]
+Version=1.0
+Terminal=false
+Type=Application
+Name=GitHub pyelftools
+Exec=/opt/google/chrome/google-chrome --profile-directory=Default --app-id=conmmjolegjhgjogapegbdbaboifcedm
+Icon=chrome-conmmjolegjhgjogapegbdbaboifcedm-Default
+StartupWMClass=crx_conmmjolegjhgjogapegbdbaboifcedm

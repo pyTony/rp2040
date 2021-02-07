@@ -3,11 +3,14 @@ HEXFILE = "./bootrom.hex"
 
 code = IntelHex(HEXFILE)
 # for blink.hex + 0x000000ee # looked from bootrom.dis
-start = code.minaddr() + 0xee  # offset to start in bootrom
+start = code.minaddr() + 0x1c  # offset to start in bootrom
 # for small programs + 0x370
 num_instructions = 10000
 
 cond = "eq ne cs cc mi pl vs vc hi ls ge lt gt le".split() + [""]
+regs = ["r{}".format(n) for n in range(12)] + ['ip', 'lr','sp', 'pc']
+assert regs[15] == 'pc'
+
 
 # APSR      The flags from previous instructions.   0 = 0b00000:000
 # IAPSR     A composite of IPSR and APSR.           1 = 0b00000:001
@@ -57,7 +60,7 @@ def get_register_list(halfword):
         registers >>= 1
         if registers == 0:
             break
-    if halfword & 1 << 8:
+    if halfword & (1 << 8):
         register_list.append('lr')
     return register_list
 
@@ -143,6 +146,10 @@ def disassemble(pc, halfword):
         else:
             # 00000106 e793 1110011110010011 111001 e793 b.n	30 <_dead>
             return "other {0:06b}".format(opc)
+    elif halfword == 0xbf20:
+        return "wfe"
+    elif halfword == 0xbf30:
+        return "wfi"
     elif (opc >> 1) == 0b11100:
         imm11=bits(10, 0, opc) << 1
         if imm11 & (1 << 11):
@@ -156,9 +163,9 @@ def disassemble(pc, halfword):
 
         if opc == 0b1100:
             # 114:	1840 0001100001000000     	adds	r0, r0, r1
-            return "adds r{}, r{}, r{}".format(*get_three_registers(halfword))
+            return "adds "+', '.join("r{}".format(s) for s in get_three_registers(halfword))
         elif opc == 0b1101:
-            return "sub reg A6-165"
+            return "sub "+', '.join("r{}".format(s) for s in get_three_registers(halfword))
         elif opc == 0b01110:
             return "adds r{0}, r{1}, #{2}   ;0x{2:x}".format(*get_two_registers(halfword), get_imm3(halfword))
         elif opc == 0b01111:
@@ -216,7 +223,7 @@ def disassemble(pc, halfword):
         """
         opc=bits(9, 6, halfword)
         operation=(
-            'ands eors lsl lsr ars adc sbc ror tst rsb cmp cmn orr muls bic mvn'.split())
+            'ands eors lsl lsr ars adc sbc ror tst rsb cmp cmn orrs muls bics mvns'.split())
         # check the rest conform, two first ones checked
         return "{}  r{}, r{}".format(operation[opc], *get_two_registers(halfword))
     elif bits(5, 2, opc) == 0b1111:
@@ -259,12 +266,16 @@ def disassemble(pc, halfword):
             setflag=True
             return "MOVS A5-140"
         elif halfword >> 8 == 0b1000110:
+            # mistake
+            # 000026a0 4660 0100011001100000 010001 mov  ip, r0
+            # 26a0:	4660      	mov	r0, ip
+            # 26d0:	4684      	mov	ip, r0
             # MOV with 4 bit m, bit 4 of n is set to bit7 value
-            m=bits(6, 3, halfword)
-            n=(bits(7, 7, halfword) << 3) + bits(2, 0, halfword)
-            instr = "mov  r{}, r{}"
+            m=regs[(bits(7, 7, halfword) << 3) + bits(2, 0, halfword)]
+            n=regs[bits(6, 3, halfword)]
+            instr = "mov  {}, {}".format(m, n)
             instr = ("nop  ; (" + instr +")") if m == n else instr
-            return instr.format(m, n)
+            return instr
         elif opc >> 1 == 0:
             # 00xx    Add Registers          ADD (register) on page A6-102
             rdn, rm=get_two_registers(halfword)
@@ -344,6 +355,7 @@ def disassemble(pc, halfword):
             two_reg=get_two_registers(halfword)
             return (instr+" r{0}, [r{1}, #{2}]").format(*two_reg, get_imm5(halfword))
         elif ops == (0b1000, 0b001):
+            # 23fe:	803b 1000000000111011   strh	r3, [r7, #0]
             return "strh r{}, [r{}, #{}]".format(rt, rn, get_imm5(halfword) << 1)
         elif ops == (0b1000, 0b101):
             return "ldrh r{}, [r{}, #{}]".format(rt, rn, get_imm5(halfword) << 1)
@@ -356,26 +368,28 @@ def disassemble(pc, halfword):
             # online http://shell-storm.org/online/Online-Assembler-and-Disassembler/?opcodes=884b&arch=arm-t&endianness=big&dis_with_addr=True&dis_with_raw=True&dis_with_ins=True#disassembly
             # 88 4B    ldrh r3, [r1, #2]
             imm5 = get_imm5(halfword)<<1
-            return "lsrh r{0}, [r{1}, #{2}] ; 0x{2:x}".format(*get_two_registers(halfword), imm5)
+            return "ldrh r{0}, [r{1}, #{2}] ; 0x{2:x}".format(*get_two_registers(halfword), imm5)
+        #  00000552 9100 1001000100000000 100100 str	r1, [sp, #0] ; 1001 000
+        elif ops == (0b1001, 0b000):
+            return "str r{}, [sp, #{}]".format(rt,get_imm5(halfword)<<2)
+        
         return "A5-82 {0:04b} {1:03b}".format(*ops)
-    # c bit 5  = halfword bit 15 c is bit 15-10
     elif bits(5, 1, opc) == 0b10100:
-        return "add r{0}, pc, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
+        return "sub r{0}, pc, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
     elif bits(5, 1, opc) == 0b10101:
-        return "A6-104"
+        return "add r{0}, pc, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
     elif bits(5, 2, opc) == 0b1011:
         opc=bits(11, 5, halfword)
-        register_list=get_register_list(halfword)
         if opc < 0b100:
-            return "add SP plus immediate"
+            return "add r{0}, sp, #{1}".format(bits(10,8,halfword), get_imm8(halfword)<<2)
         elif opc < 0b1000:
-            return "sub SP plus immediate"
+            return "sub r{0}, sp, #{1}".format(bits(10,8,halfword), get_imm8(halfword)<<2)
         elif opc == 0b0110011:
             return "cps"
         elif bits(11, 9, halfword) == 0b010:
-            return "push {%s}" % ', '.join(register_list)
+            return "push {%s}" % ', '.join(get_register_list(halfword))
         elif bits(11, 9, halfword) == 0b110:
-            return "pop {%s}" % ', '.join(register_list)
+            return "pop {%s}" % ', '.join(get_register_list(halfword))
         else:
             opc >>= 1  # do not care anymore about the last bit
             # partial return, continue HERE
@@ -383,7 +397,7 @@ def disassemble(pc, halfword):
                      0b001010: "uxth ; a6-173", 0b001011: "uxtb ; a6-172",
                      0b101000: "rev r{}, r{}".format(*get_two_registers(halfword)),
                      0b101001: "revsh r{}, r{}".format(*get_two_registers(halfword)),
-                     0b111101: "sev ; a6-156", 0b111100: "wfe ; Wait For Event",
+                     0b111101: "sev ; a6-156", 
                      0b111000: "bkpt 0x{:04x}".format(get_imm8(halfword)<<2)}
             try:
                 return codes[opc]
@@ -391,7 +405,8 @@ def disassemble(pc, halfword):
                 return "Hint instruction code {0:06b}".format(opc)
         return "A5-83"
     elif bits(5, 1, opc) == 0b11000:
-        return "ASTM, STMIA, STME A6-157"
+        register_list = get_register_list(halfword)
+        return "stmia r%i!, {%s}" % (get_one_register(halfword), ', '.join(register_list))
     elif bits(5, 1, opc) == 0b11001:
         register_list = get_register_list(halfword)
         excl = "!" if register_list[-1]=='lr' else ""
