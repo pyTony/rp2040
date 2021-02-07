@@ -8,6 +8,9 @@ start = code.minaddr() + 0x1c  # offset to start in bootrom
 num_instructions = 10000
 
 cond = "eq ne cs cc mi pl vs vc hi ls ge lt gt le".split() + [""]
+regs = ["r{}".format(n) for n in range(12)] + ['ip', 'lr','sp', 'pc']
+assert regs[15] == 'pc'
+
 
 # APSR      The flags from previous instructions.   0 = 0b00000:000
 # IAPSR     A composite of IPSR and APSR.           1 = 0b00000:001
@@ -57,7 +60,7 @@ def get_register_list(halfword):
         registers >>= 1
         if registers == 0:
             break
-    if halfword & 1 << 8:
+    if halfword & (1 << 8):
         register_list.append('lr')
     return register_list
 
@@ -160,9 +163,9 @@ def disassemble(pc, halfword):
 
         if opc == 0b1100:
             # 114:	1840 0001100001000000     	adds	r0, r0, r1
-            return "adds r{}, r{}, r{}".format(*get_three_registers(halfword))
+            return "adds "+', '.join("r{}".format(s) for s in get_three_registers(halfword))
         elif opc == 0b1101:
-            return "sub reg A6-165"
+            return "sub "+', '.join("r{}".format(s) for s in get_three_registers(halfword))
         elif opc == 0b01110:
             return "adds r{0}, r{1}, #{2}   ;0x{2:x}".format(*get_two_registers(halfword), get_imm3(halfword))
         elif opc == 0b01111:
@@ -263,21 +266,13 @@ def disassemble(pc, halfword):
             setflag=True
             return "MOVS A5-140"
         elif halfword >> 8 == 0b1000110:
+            # mistake
+            # 000026a0 4660 0100011001100000 010001 mov  ip, r0
+            # 26a0:	4660      	mov	r0, ip
+            # 26d0:	4684      	mov	ip, r0
             # MOV with 4 bit m, bit 4 of n is set to bit7 value
-            m=bits(6, 3, halfword)
-            n=(bits(7, 7, halfword) << 3) + bits(2, 0, halfword)
-            if m == 12:
-                m = "ip"
-            elif m ==14: 
-                m = "pc" 
-            else:
-                m = "r{}".format(m) 
-            if n == 12:
-                n = "ip"
-            elif n ==14: 
-                n = "pc" 
-            else:
-                n ="r{}".format(n) 
+            m=regs[(bits(7, 7, halfword) << 3) + bits(2, 0, halfword)]
+            n=regs[bits(6, 3, halfword)]
             instr = "mov  {}, {}".format(m, n)
             instr = ("nop  ; (" + instr +")") if m == n else instr
             return instr
@@ -374,25 +369,27 @@ def disassemble(pc, halfword):
             # 88 4B    ldrh r3, [r1, #2]
             imm5 = get_imm5(halfword)<<1
             return "ldrh r{0}, [r{1}, #{2}] ; 0x{2:x}".format(*get_two_registers(halfword), imm5)
+        #  00000552 9100 1001000100000000 100100 str	r1, [sp, #0] ; 1001 000
+        elif ops == (0b1001, 0b000):
+            return "str r{}, [sp, #{}]".format(rt,get_imm5(halfword)<<2)
+        
         return "A5-82 {0:04b} {1:03b}".format(*ops)
-    # c bit 5  = halfword bit 15 c is bit 15-10
     elif bits(5, 1, opc) == 0b10100:
-        return "add r{0}, pc, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
+        return "sub r{0}, pc, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
     elif bits(5, 1, opc) == 0b10101:
-        return "A6-104"
+        return "add r{0}, pc, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
     elif bits(5, 2, opc) == 0b1011:
         opc=bits(11, 5, halfword)
-        register_list=get_register_list(halfword)
         if opc < 0b100:
-            return "add r{0}, sp, #{1}",
+            return "add r{0}, sp, #{1}".format(bits(10,8,halfword), get_imm8(halfword)<<2)
         elif opc < 0b1000:
-            return "sub r{0}, sp, #{1}"
+            return "sub r{0}, sp, #{1}".format(bits(10,8,halfword), get_imm8(halfword)<<2)
         elif opc == 0b0110011:
             return "cps"
         elif bits(11, 9, halfword) == 0b010:
-            return "push {%s}" % ', '.join(register_list)
+            return "push {%s}" % ', '.join(get_register_list(halfword))
         elif bits(11, 9, halfword) == 0b110:
-            return "pop {%s}" % ', '.join(register_list)
+            return "pop {%s}" % ', '.join(get_register_list(halfword))
         else:
             opc >>= 1  # do not care anymore about the last bit
             # partial return, continue HERE
