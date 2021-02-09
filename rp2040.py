@@ -1,12 +1,24 @@
 from intelhex import IntelHex
 
 HEXFILE = "./bootrom.hex"
-output = "my_bootrom_start.s"
-num_instructions = 10000
+output = "my_bootrom.s"
+
+# specifying the regions of data, not instructions, partial list here use find with .word to extract from
+# disassebled file
+data = [(0,0x18), (0x50, 0xed), (0x190, 0x2a4), (0x2b2, 0x2d4), (0x3a6,0x448), 
+        (0x458,0x45b), (0x468, 0x46f), (0x492,0x497), (0x4f4, 0x4ff), 
+        (0x578, 0x57b), (0x594, 0x59b), (0x5f0, 0x5f3), (0x6e4, 0x6ef),
+        (0x740, 0x743), (0xdcc, 0xdeb), (0xe50, 0xe57), (0xe8c, 0xe93),
+        (0xec4, 0xecb), (0xeec, 0xef7), (0xf34, 0xf43), (0xf98, 0xfb3), 
+        (0x1188,0x11b7), (0x13d0, 0x1403)]
 
 code = IntelHex(HEXFILE)
 # for blink.hex + 0x000000ee # looked from bootrom.dis
-start = code.minaddr() + 0x1c  # offset to start in bootrom
+start = code.minaddr() 
+# let's now do it all
+num_instructions = code.maxaddr() - code.minaddr() + 1
+
+#+ 0x1c  # offset to start in bootrom
 # for small programs + 0x370
 
 
@@ -51,6 +63,10 @@ def bytes_to_halfword(mem, addr, bigendian=True):
     """ joins two bytes to halfword, default bigendian """
     return mem[addr]+mem[addr+1]*0x100 if bigendian else 0x100*mem[addr] + mem[addr+1]
 
+def bytes_to_word(mem, addr, bigendian=True):
+    """ joins four bytes to halfword, default bigendian """
+    return (mem[addr]+mem[addr+1]*0x100+mem[addr+2]*0x10000+mem[addr+3]*0x1000000 if bigendian 
+            else 0x1000000*mem[addr] + 0x10000 *mem[addr+1] + 0x100 * mem[addr+2] + mem[addr+3])
 
 def get_register_list(halfword, reg):
     """ interpret the low byte as list of registers """
@@ -348,7 +364,9 @@ def disassemble(pc, halfword):
             instr="strb" if opB & 1 else "ldrb"
             two_reg=get_two_registers(halfword)
             return (instr+" r{0}, [r{1}, #{2}]").format(*two_reg, get_imm5(halfword))
-        elif (opA == 0b1000) and opB in (0b000, 0b001, 0b010):
+        elif opA == 0b1001 and opB in (0b000, 0b011):
+            return "str r{}, [sp, #{}]".format(bits(10,8,halfword),get_imm8(halfword)<<2)
+        elif (opA == 0b1000) and opB < 0b100: # in (0b000, 0b001, 0b010):
             return "strh r{}, [r{}, #{}]".format(rt, rn, get_imm5(halfword) << 1)
         elif ops == (0b1000, 0b101):
             return "ldrh r{}, [r{}, #{}]".format(rt, rn, get_imm5(halfword) << 1)
@@ -362,13 +380,8 @@ def disassemble(pc, halfword):
             # 88 4B    ldrh r3, [r1, #2]
             imm5 = get_imm5(halfword)<<1
             return "ldrh r{0}, [r{1}, #{2}] ; 0x{2:x}".format(*get_two_registers(halfword), imm5)
-        #  00000552 9100 1001000100000000 100100 str	r1, [sp, #0] ; 1001 000
-        elif opA == (0b1001, 0b000):
-            return "str r{}, [sp, #{}]".format(rt,get_imm5(halfword)<<2)
-        elif ops == (0b1001, 0b101):
-            return "ldr r{}, [sp, #{}]".format(rt,get_imm5(halfword))
-        elif ops == (0b1001, 0b100):
-            return "ldr r{}, [sp, #{}]".format(rt, get_imm8(halfword)<<2)
+        elif opA == 0b1001 and opB in (0b100, 0b101, 0b110):
+            return "ldr r{}, [sp, #{}]".format(bits(10,8,halfword), get_imm8(halfword)<<2)
         elif ops == (0b1001, 0b010):
             return "str r{}, [sp, #{}]".format(bits(10,8,halfword), get_imm8(halfword)<<2)
           
@@ -393,11 +406,11 @@ def disassemble(pc, halfword):
         else:
             opc >>= 1  # do not care anymore about the last bit
             # partial return, continue HERE
-            codes={0b001000: "sxth ; a6-169", 0b001001: "sxtb ; a6-168",
-                     0b001010: "uxth ; a6-173", 0b001011: "uxtb ; a6-172",
+            codes={0b001000: "sxth", 0b001001: "sxtb",
+                     0b001010: "uxth", 0b001011: "uxtb",
                      0b101000: "rev r{}, r{}".format(*get_two_registers(halfword)),
                      0b101001: "revsh r{}, r{}".format(*get_two_registers(halfword)),
-                     0b111101: "sev ; a6-156", 
+                     0b111101: "sev", 
                      0b111000: "bkpt 0x{:04x}".format(get_imm8(halfword)<<2)}
             try:
                 return codes[opc]
@@ -460,17 +473,34 @@ def get_bl(pc, ins1, ins2):
 if __name__ == "__main__":
     prev=""
     f=open(output, "w+")
+    data_gen = iter(data)
+    start_data, end_data = next(data_gen)
+    has_data = True
+    word = 0
     with f as out_file:
         for pc in range(start, start + num_instructions, 2):  # code.maxaddr()
+            try:
+                if has_data:
+                    if start_data <= pc <= end_data:
+                        if pc % 4 == 0:
+                            #loading the word at 4 byte boundary
+                            word = bytes_to_word(code,pc)
+                        else:
+                            print("{0:08x} .word {1:08x}".format(pc >> 2 << 2, word), file=out_file)
+                        continue
+                    elif pc > end_data:
+                        start_data, end_data = next(data_gen)
+                        print(file=out_file)
+            except StopIteration:
+                print("No more data areas")
+                has_data = False
+                pass
             if prev == "(32-bit)":
                 bl=get_bl(pc+2, opcode, bytes_to_halfword(code, pc))+"\n"
-                print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,
-                                                                    bytes_to_halfword(
-                                                                        code, pc),
-                                                                    get_opcode(
-                                                                        opcode),
-                                                                    bl),
-                    file=out_file)
+                print("{0:08x} {1:04x} {1:016b} {2}".format(pc,
+                                                            bytes_to_halfword(code, pc),
+                                                            bl),
+                        file=out_file)
 
                 prev=""
             else:
@@ -480,9 +510,7 @@ if __name__ == "__main__":
                 # add newline to clarify blocks
                 if prev[0] == 'b' or prev.startswith('nop'):
                     prev += "\n"
-                print("{0:08x} {1:04x} {1:016b} {2:06b} {3}".format(pc,
-                                                                    opcode,
-                                                                    get_opcode(
-                                                                        opcode),
-                                                                    prev),
-                    file=out_file)
+                print("{0:08x} {1:04x} {1:016b} {2}".format(pc,
+                                                            opcode,
+                                                            prev),
+                    file= out_file)

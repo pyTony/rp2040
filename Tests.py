@@ -1,4 +1,4 @@
-import pytest
+import pytest # have to learn how to use pytest
 import re
 
 import rp2040
@@ -24,6 +24,7 @@ def test_disassemble():
     # 23fe:	803b 1000000000111011   strh	r3, [r7, #0]
     result =  rp2040.disassemble(0x23fe, 0x803b)
     assert re.match(re_to_match2_ind("strh", "r3", "r7", "0"), result)
+    
     #ldr sp imm8
     #0000245e 9901 1001100100000001 100110 ldr	r1, [sp, #4] ; 1001 100
     result =  rp2040.disassemble(0x245e, 0x9901)
@@ -43,11 +44,30 @@ def test_disassemble():
     result =  rp2040.disassemble(0x960, 0x84a2)
     assert re.match(re_to_match2_ind("strh", "r2", "r4", "36"), result)
     
-    #d68:	9501   1001010100000001   	str	r5, [sp, #4]
+    #d68: 9501   1001010100000001  str	r5, [sp, #4]
     #A5-82 1001 010
     result =  rp2040.disassemble(0xd68, 0x9501)
     assert re.match(re_to_match2_ind("str", "r5", "sp", "4"), result)
     
- 
+    #1100:  85e6   1000011000100101   	strh	r6, [r4, #46]	; 0x2e ops 1000 011
+    # first try to unite with the case of line 960 above, success!
+    result =  rp2040.disassemble(0x1100, 0x85e6)
+    assert re.match(re_to_match2_ind("strh", "r6", "r4", "46"), result)
+    
+    #552: 9100 1001000100000000	str	r1, [sp, #0]; ops 1001 000
+    result =  rp2040.disassemble(0x552, 0x9100)
+    assert re.match(re_to_match2_ind("str", "r1", "sp", "0"), result)
+    
+    #0000134a 9702 1001011100000010 str	r7, [sp, #8] ; 1001 011
+    # added the 011 to above d68: branch
+    result =  rp2040.disassemble(0x134a, 0x9702)
+    assert re.match(re_to_match2_ind("str", "r7", "sp", "8"), result)
+
+    #1c36:	9d01      	ldr	r5, [sp, #4]
+    #       1001110100000001 A5-82 1001 110
+    result =  rp2040.disassemble(0x1c36, 0x9d01)
+    assert re.match(re_to_match2_ind("ldr", "r5", "sp", "4"), result)
+    
+    
 test_disassemble()    
 print("tests passed")
