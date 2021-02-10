@@ -1,45 +1,25 @@
 from intelhex import IntelHex
 
-HEXFILE = "./bootrom.hex"
-output = "my_bootrom.s"
-
-# specifying the regions of data, not instructions, partial list here use find with .word to extract from
-# disassebled file
-data = [(0,0x18), (0x50, 0xed), (0x190, 0x2a4), (0x2b2, 0x2d4), (0x3a6,0x448), 
-        (0x458,0x45b), (0x468, 0x46f), (0x492,0x497), (0x4f4, 0x4ff), 
-        (0x578, 0x57b), (0x594, 0x59b), (0x5f0, 0x5f3), (0x6e4, 0x6ef),
-        (0x740, 0x743), (0xdcc, 0xdeb), (0xe50, 0xe57), (0xe8c, 0xe93),
-        (0xec4, 0xecb), (0xeec, 0xef7), (0xf34, 0xf43), (0xf98, 0xfb3), 
-        (0x1188,0x11b7), (0x13d0, 0x1403)]
-
-code = IntelHex(HEXFILE)
-# for blink.hex + 0x000000ee # looked from bootrom.dis
-start = code.minaddr() 
-# let's now do it all
-num_instructions = code.maxaddr() - code.minaddr() + 1
-
-#+ 0x1c  # offset to start in bootrom
-# for small programs + 0x370
-
 
 cond = "eq ne cs cc mi pl vs vc hi ls ge lt gt le".split() + [""]
 regs = ["r{}".format(n) for n in range(12)] + ['ip', 'sp','lr', 'pc']
-"my_bootrom_start.s"
+
 
 # APSR      The flags from previous instructions.   0 = 0b00000:000
 # IAPSR     A composite of IPSR and APSR.           1 = 0b00000:001
 # EAPSR     A composite of EPSR and APSR.           2 = 0b00000:010
-# XPSR      A composite of all three PSR registers. 3 = 0b00000:011I
+# XPSR      A composite of all three PSR registers. 3 = 0b00000:011
 # PSR       The Interrupt status register.          5 = 0b00000:101
 # EPSR      The execution status register.bb.
 #           The EPSR bitfield exhibits RAZ behavior.6 = 0b00000:110
 # IEPSR     A composite of IPSR and EPSR.           7 = 0b00000:111
 # MSP       The Main Stack pointer.                 8 = 0b00001:000
 # PSP       The Process Stack pointer.              9 = 0b00001:001
-
+# PRIMASK   Register to mask out configurable exceptions
+#           Raises the current priority to 0 when set to 1. This is a 1-bit register.       16 = 0b00010:000   
+# CONTROL   The CONTROL register, see The special-purpose CONTROL register on page B1-189.  20 = 0b00010:100
+## ** ADD THE PRIMASK AND CONTROL HANDLING TO THIS VERSION **
 sysR = "ASPR IAPSR EAPSR XPSR NONE PSR EPSR IEPSR MSP PSP".split()
-
-# assert cond[-1] == ""
 
 
 def get_opcode(instruction):
@@ -106,10 +86,14 @@ def get_one_register(halfword):
 
 
 def get_imm3(halfword):
+    """ b8..b6
+    """
     return bits(8, 6, halfword)
 
 
 def get_imm5(halfword):
+    """ b10..b6
+    """
     return bits(10, 6, halfword)
 
 
@@ -119,12 +103,13 @@ def get_imm5_ext(halfword, ext):
     return (ext << 5) + bits(10, 6, halfword)
 
 
-def get_imm8(halfword):
-    return halfword & 0xff
+def get_imm8(para):
+    """ lowest byte of parameter """
+    return para & 0xff
 
 
 def get_opA_opB(halfword):
-    """ return 7 highest bits as ops """
+    """ return 7 highest bits of halfword as ops """
     return bits(15, 12, halfword), bits(11, 9, halfword)
 
 
@@ -457,26 +442,44 @@ def get_bl(pc, ins1, ins2):
         return "bl   {:x}".format(pc+addr)
     elif ins1 >> 4 == 0b111100111000:
         # Move to Special Register from ARM Register
-        #
         # 11c:	1111001110000010  1000100000001000 f382 8808 	msr	MSP, r2
-        #                                                   Binary value shown split into the fields used
-        #                                                   in the instruction operation pseudocode,
-        #                                                   SYSm<7:3>:SYSm<2:0>.
-       # PRIMASK   Register to mask out configurable exceptions
-        # .cc.      Raises the current priority to 0 when set to 1. This is a 1-bit register.16 = 0b00010:000
-        # CONTROL   The CONTROL register, see The special-purpose CONTROL register on page B1-189.20 = 0b00010:100
-        # -Reserved.Other values
+        # Binary value shown split into the fields used in the instruction operation pseudocode,
+        # SYSm<7:3>:SYSm<2:0>.
+         # -Reserved.Other values
         sysM=ins2 & 0xf
         return "msr {}, r{}".format(sysR[sysM], ins1 & 0b111)
     return "To be implemented"
 
 if __name__ == "__main__":
+    HEXFILE = "./bootrom.hex"
+    output = "my_bootrom.s"
+
+    # specifying the regions of data, not instructions, partial list here use find with .word to extract from
+    # disassebled file
+    data = [(0,0x18), (0x50, 0xed), (0x190, 0x2a4), (0x2b2, 0x2d4), (0x3a6,0x448), 
+            (0x458,0x45b), (0x468, 0x46f), (0x492,0x497), (0x4f4, 0x4ff), 
+            (0x578, 0x57b), (0x594, 0x59b), (0x5f0, 0x5f3), (0x6e4, 0x6ef),
+            (0x740, 0x743), (0xdcc, 0xdeb), (0xe50, 0xe57), (0xe8c, 0xe93),
+            (0xec4, 0xecb), (0xeec, 0xef7), (0xf34, 0xf43), (0xf98, 0xfb3), (0x1028, 0x102f),
+            (0x1188,0x11b7), (0x13d0, 0x1403), (0x146c,0x1473), (0x14a8,0x14af), (0x14fc, 0x14ff),
+            (0x15fa4, 0x15c3), (0x15fc, 0x1607)]
+
+    code = IntelHex(HEXFILE)
+    # for blink.hex + 0x000000ee # looked from bootrom.dis
+    start = code.minaddr() 
+    # let's now do it all
+    num_instructions = code.maxaddr() - code.minaddr() + 1
+
+    #+ 0x1c  # offset to start in bootrom
+    # for small programs + 0x370
+
+
     prev=""
     f=open(output, "w+")
     data_gen = iter(data)
     start_data, end_data = next(data_gen)
     has_data = True
-    word = 0
+    word = opcode = 0
     with f as out_file:
         for pc in range(start, start + num_instructions, 2):  # code.maxaddr()
             try:
@@ -492,7 +495,7 @@ if __name__ == "__main__":
                         start_data, end_data = next(data_gen)
                         print(file=out_file)
             except StopIteration:
-                print("No more data areas")
+                print("No more data areas from 0x{0:x}".format(pc))
                 has_data = False
                 pass
             if prev == "(32-bit)":
