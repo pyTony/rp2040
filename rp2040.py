@@ -53,7 +53,6 @@ def get_register_list(halfword, reg):
     registers, register_list = halfword & 0xff, []
     for r in range(8):
         if registers & 1:
-            # print(reg)
             register_list.append("r{}".format(r))
         registers >>= 1
         if registers == 0:
