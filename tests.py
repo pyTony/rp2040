@@ -16,7 +16,7 @@ class test():
         assert re.match(re_to_match2_ind("ldr", "r2", "r1", "0"), result)
         
     def test_bn(self):       
-        # 00000106 e793 1110011110010011 111001 e793 b.n	30 <_dead>
+        # 00000106 e793 1110011110010011 b.n	30
         result = rp2040.disassemble(0x106, 0xe793)
         assert re.match(re_to_match1("b.n", "30"), result)
 
@@ -24,14 +24,13 @@ class test():
         assert rp2040.regs[13:] == ['sp','lr', 'pc']
 
     def test_ldr_sp_imm1(self):
-        #1c36:	9d01      	ldr	r5, [sp, #4]
-        #       1001110100000001 A5-82 1001 110
+        #1c36:	9d01 1001110100000001      ldr	r5, [sp, #4] ; ops 1001 110
         result =  rp2040.disassemble(0x1c36, 0x9d01)
         assert re.match(re_to_match2_ind("ldr", "r5", "sp", "4"), result)
         
     def test_ldr_sp_ldr2(self):       
         #ldr sp imm8
-        #0000245e 9901 1001100100000001 100110 ldr	r1, [sp, #4] ; 1001 100
+        #0000245e 9901 1001100100000001    ldr	r1, [sp, #4] ; ops 1001 100
         result =  rp2040.disassemble(0x245e, 0x9901)
         assert re.match(re_to_match2_ind("ldr", "r1", "sp", "4"), result)
 
@@ -41,8 +40,7 @@ class test():
         assert re.match(re_to_match2_ind("strh", "r3", "r7", "0"), result)
     
     def test_strh_imm2(self):
-        #4bc:	8282    1000001010000010   strh	r2, [r0, #20]
-        #A5-82 1000 001
+        #4bc:	8282    1000001010000010   strh	r2, [r0, #20] ; ops 1000 001
         result =  rp2040.disassemble(0x4bc, 0x8282)
         assert re.match(re_to_match2_ind("strh", "r2", "r0", "20"), result)
         
@@ -54,7 +52,7 @@ class test():
 
     def test_strh_imm4(self):
         #1100:  85e6   1000011000100101   	strh	r6, [r4, #46]	; 0x2e ops 1000 011
-        # first try to unite with the case of line 960 above, success!
+        #first trying to unite with the case of line 960 above, success!
         result =  rp2040.disassemble(0x1100, 0x85e6)
         assert re.match(re_to_match2_ind("strh", "r6", "r4", "46"), result)
 
@@ -64,13 +62,12 @@ class test():
         assert re.match(re_to_match2_ind("strh", "r3", "r7", "0"), result)
 
     def test_str_imm1(self):
-        # 11a:	6038  0110000000111000 011000   str	r0, [r7, #0]
+        #11a:	6038  0110000000111000 011000   str	r0, [r7, #0]
         result =  rp2040.disassemble(0x11a, 0x6038)
         assert re.match(re_to_match2_ind("str", "r0", "r7", "0"), result)
 
     def test_str_sp_imm2(self):
-        #d68: 9501   1001010100000001  str	r5, [sp, #4]
-        #A5-82 1001 010
+        #d68: 9501   1001010100000001  str	r5, [sp, #4] ; ops 1001 010
         result =  rp2040.disassemble(0xd68, 0x9501)
         assert re.match(re_to_match2_ind("str", "r5", "sp", "4"), result)
 
@@ -80,7 +77,7 @@ class test():
         assert re.match(re_to_match2_ind("str", "r1", "sp", "0"), result)
         
     def test_str_sp_imm3(self):
-        #0000134a 9702 1001011100000010 str	r7, [sp, #8] ; 1001 011
+        #134a: 9702 1001011100000010 str	r7, [sp, #8] ; ops 1001 011
         # added the 011 to above d68: branch
         result =  rp2040.disassemble(0x134a, 0x9702)
         assert re.match(re_to_match2_ind("str", "r7", "sp", "8"), result)
@@ -95,5 +92,4 @@ class test():
                     print("\n----- {:>20} FAILED ----".format(fn))
                     print(e)
 
-t = test()         
-t.run()
+test().run()
