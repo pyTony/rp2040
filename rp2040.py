@@ -431,12 +431,9 @@ def get_bl(pc, ins1, ins2):
         s=bits(10, 10, ins1)
 
         j1, j2=bits(13, 13, ins2), bits(11, 11, ins2)
-        # i1, i2 = j1, j2 #(j1^s)>0, (j2^s)>0
         imm10=bits(9, 0, ins1)
         imm12=bits(10, 0, ins2) << 1
         addr=(s << 22) + (imm10 << 12) + imm12
-# assert "{:010b}{:011b}0".format(imm10,imm11,addr) == "{:022b}".format(addr)
-# addr += (i1<<22)+(i2<21)
         if s:
             addr=sign_extend(addr, 23)  # signed two's complement
         return "bl   {:x}".format(pc+addr)
