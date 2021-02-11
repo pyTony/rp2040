@@ -10,16 +10,16 @@ def re_to_match2_ind(instr, op1, op2, ind):
     return "{} *{}, *\[{}, \#{}\].*".format(instr, op1, op2, ind)
 
 class test():
-    def test_ldr1(self):    
-        # fe:	680a  0110100000001010 011010 	ldr	r2, [r1, #0]
-        result = rp2040.disassemble(0xfe, 0x680a)
-        assert re.match(re_to_match2_ind("ldr", "r2", "r1", "0"), result)
-        
     def test_bn(self):       
         # 00000106 e793 1110011110010011 b.n	30
         result = rp2040.disassemble(0x106, 0xe793)
         assert re.match(re_to_match1("b.n", "30"), result)
 
+    def test_ldr1(self):    
+        # fe:	680a  0110100000001010 011010 	ldr	r2, [r1, #0]
+        result = rp2040.disassemble(0xfe, 0x680a)
+        assert re.match(re_to_match2_ind("ldr", "r2", "r1", "0"), result)
+        
     def test_regs(self):    
         assert rp2040.regs[13:] == ['sp','lr', 'pc']
 
