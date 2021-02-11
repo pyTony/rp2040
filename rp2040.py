@@ -358,7 +358,7 @@ def disassemble(pc, halfword):
             rn = "sp" if rn == 0 else "r{}".format(rt)
             return "str r{}, [{}, #{}]".format(rt, rn, get_imm5(halfword))
         elif ops == (0b1000, 0b100):
-            #This mayby bug in disassembler of Pico cross compiler
+            #This may be bug in disassembler of Pico cross compiler
             # 00000fce 884b 1000100001001011 100010 lsrs	r6, r1, #31
             # online http://shell-storm.org/online/Online-Assembler-and-Disassembler/?opcodes=884b&arch=arm-t&endianness=big&dis_with_addr=True&dis_with_raw=True&dis_with_ins=True#disassembly
             # 88 4B    ldrh r3, [r1, #2]
