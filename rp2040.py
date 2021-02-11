@@ -142,8 +142,7 @@ def disassemble(processor, halfword):
             imm11 = bits(10, 0, halfword) << 1
             if imm11 & (1 << 11):
                 imm11=(imm11 & 0x7ff) - 0x800  # signed two's complement
-            processor.PC += imm11 + 4
-            return "b.n  {0:x}".format(processor.PC)
+            return "b.n  {0:x}".format(processor.PC + imm11 + 4)
         else:
             return "other {0:06b}".format(opc)
     elif halfword == 0xbf20:
@@ -155,8 +154,7 @@ def disassemble(processor, halfword):
         if imm11 & (1 << 11):
             imm11=(imm11 & 0x7ff) - 0x800  # signed two's complement
 
-        processor.PC += imm11 + 4
-        return "b.n  {0:x}".format(processor.PC)
+        return "b.n  {0:x}".format(processor.PC + imm11 + 4)
 
     elif opc < 0b10000:
         opc=bits(13, 9, halfword)  # also bit 9
@@ -328,23 +326,26 @@ def disassemble(processor, halfword):
             # one in highest bit of ops2 means str
             instruction="ldr" if opB & 0b100 else "str"
             return instruction + "  {0} ; 0x{1:x}".format('r%i, [r%i, #%i]' % (*get_two_registers(halfword), imm), imm)
-        elif ops == (0b0101, 0b000):
-            return "str r{}, [r{}, r{}]".format(rt, rn, rm)
+        instruction = ""
+        if ops == (0b0101, 0b000):
+            instruction = "str"
         elif ops == (0b0101, 0b001):
-            return "strh r{}, [r{}, r{}]".format(rt, rn, rm)
+            instruction = "strh"
         elif ops == (0b0101, 0b010):
-            return "strb r{}, [r{}, r{}]".format(rt, rn, rm)
+            instruction = "strb"
         elif ops == (0b0101, 0b011):
-            return "ldrsb r{}, [r{}, r{}]".format(rt, rn, rm)
+            instruction = "ldrsb"
         elif ops == (0b0101, 0b100):
-            return "ldr r{}, [r{}, r{}]".format(rt, rn, rm)
+            instruction = "ldr"
         elif ops == (0b0101, 0b101):
-            return "ldrh r{}, [r{}, r{}]".format(rt, rn, rm)
+            instruction = "ldrh"
         elif ops == (0b0101, 0b110):
-            return "ldrb r{}, [r{}, r{}]".format(rt, rn, rm)
+            instruction = "ldrb"
         elif ops == (0b0101, 0b111):
-            return "ldrsh r{}, [r{}, r{}]".format(rt, rn, rm)
-        elif opA == 0b0111:
+            instruction = "ldrsh"
+        if instruction:
+            return "{} r{}, [r{}, r{}]".format(instruction, rt, rn, rm)
+        if opA == 0b0111:
             instr="strb" if opB & 1 else "ldrb"
             two_reg=get_two_registers(halfword)
             return (instr+" r{0}, [r{1}, #{2}]").format(*two_reg, get_imm5(halfword))
@@ -412,8 +413,8 @@ def disassemble(processor, halfword):
         imm8=(bits(10, 0, halfword) & 0xff) << 1
         # signed two's complement
         imm8=sign_extend(imm8, 8)
-        processor.PC += imm8 + 4
-        return "b{0}.n {1:x} ; PC + {2}".format(cond[bits(11, 8, halfword)], processor.PC, imm8 + 4)
+        addr = processor.PC + imm8 + 4
+        return "b{0}.n {1:x} ; PC + {2}".format(cond[bits(11, 8, halfword)], addr, imm8 + 4)
     elif opc >> 1 == 0b10100:
         return "add {}, pc, #{}".format(regs[get_one_register(halfword)], get_imm8(halfword)<<2)
     else:

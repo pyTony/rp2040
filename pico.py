@@ -30,15 +30,15 @@ class arm_m0():
     def PC(self, value):
         self.registers[15] = value
 
-    def do_op(self, opc):
-        instr = rp2040.disassemble(self.PC, opc)
+    def do_op(self):
+        instr = rp2040.disassemble(self, self.fetch_halfword())
         print("{0:x} {1}".format(self.PC, instr))
         return instr.startswith('b')
 
     def execute(self):
         is_jump = False
         while not is_jump:
-            is_jump = self.do_op(self.fetch_halfword())
+            is_jump = self.do_op()
             self.PC += 2
         return self.PC
 
