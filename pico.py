@@ -32,7 +32,7 @@ class arm_m0():
 
     def do_op(self, opc):
         instr = rp2040.disassemble(self.PC, opc)
-        print(instr)
+        print("{0:x} {1}".format(self.PC, instr))
         return instr.startswith('b')
 
     def execute(self):
@@ -42,9 +42,10 @@ class arm_m0():
             self.PC += 2
         return self.PC
 
+if __name__ == '__main__':
+    code, data = rp2040.get_bootrom()
+    print("disassembled, initializing rp2040")
+    rp = arm_m0(265*1024*1024, 0x100000, code, code.minaddr())
 
-code, data = rp2040.get_bootrom()
-print("disassembled, initializing rp2040")
-rp = arm_m0(265*1024*1024, 0x100000, code, code.minaddr())
-
-rp.execute()
+    rp.jump(0x10)
+    rp.execute()
