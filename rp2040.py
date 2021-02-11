@@ -128,12 +128,12 @@ def get_branch(pc, halfword):
             return "UNRECOGNIZED INSTRUCTION ; {0:016b}".format(halfword)
 
 
-def disassemble(pc, halfword):
+def disassemble(processor, halfword):
     opc = get_opcode(halfword)
     if opc & 0b111000 == 0b111000:
         # 0x00 temporary, to catch e793, check later
         if bits(12, 11, halfword) == 0x10:
-            return get_branch(pc, halfword)
+            return get_branch(processor.PC, halfword)
         elif bits(12, 11, halfword) != 0:
             # not 32 bit
             # e793 1110011110010011
@@ -142,8 +142,8 @@ def disassemble(pc, halfword):
             imm11 = bits(10, 0, halfword) << 1
             if imm11 & (1 << 11):
                 imm11=(imm11 & 0x7ff) - 0x800  # signed two's complement
-            pc += imm11 + 4
-            return "b.n  {0:x}".format(pc)
+            processor.PC += imm11 + 4
+            return "b.n  {0:x}".format(processor.PC)
         else:
             return "other {0:06b}".format(opc)
     elif halfword == 0xbf20:
@@ -155,8 +155,8 @@ def disassemble(pc, halfword):
         if imm11 & (1 << 11):
             imm11=(imm11 & 0x7ff) - 0x800  # signed two's complement
 
-        pc += imm11 + 4
-        return "b.n  {0:x}".format(pc)
+        processor.PC += imm11 + 4
+        return "b.n  {0:x}".format(processor.PC)
 
     elif opc < 0b10000:
         opc=bits(13, 9, halfword)  # also bit 9
@@ -412,8 +412,8 @@ def disassemble(pc, halfword):
         imm8=(bits(10, 0, halfword) & 0xff) << 1
         # signed two's complement
         imm8=sign_extend(imm8, 8)
-        pc += imm8 + 4
-        return "b{0}.n {1:x} ; PC + {2}".format(cond[bits(11, 8, halfword)], pc, imm8 + 4)
+        processor.PC += imm8 + 4
+        return "b{0}.n {1:x} ; PC + {2}".format(cond[bits(11, 8, halfword)], processor.PC, imm8 + 4)
     elif opc >> 1 == 0b10100:
         return "add {}, pc, #{}".format(regs[get_one_register(halfword)], get_imm8(halfword)<<2)
     else:
@@ -469,7 +469,10 @@ def get_bootrom():
 
 def disassemble_code(code, data):
     output = "my_bootrom.s"
+    class Processor():
+        pass  # dummy before implementing processor
 
+    processor = Processor()
     # for blink.hex + 0x000000ee # looked from bootrom.dis
     start = code.minaddr() 
     # let's now do it all
@@ -486,39 +489,39 @@ def disassemble_code(code, data):
     has_data = True
     word = opcode = 0
     with f as out_file:
-        for pc in range(start, start + num_instructions, 2):  # code.maxaddr()
+        for processor.PC in range(start, start + num_instructions, 2):  # code.maxaddr()
             try:
                 if has_data:
-                    if start_data <= pc <= end_data:
-                        if pc % 4 == 0:
+                    if start_data <= processor.PC <= end_data:
+                        if processor.PC % 4 == 0:
                             #loading the word at 4 byte boundary
-                            word = bytes_to_word(code,pc)
+                            word = bytes_to_word(code,processor.PC)
                         else:
-                            print("{0:08x} .word {1:08x}".format(pc >> 2 << 2, word), file=out_file)
+                            print("{0:08x} .word {1:08x}".format(processor.PC >> 2 << 2, word), file=out_file)
                         continue
-                    elif pc > end_data:
+                    elif processor.PC > end_data:
                         start_data, end_data = next(data_gen)
                         print(file=out_file)
             except StopIteration:
-                print("No more data areas from 0x{0:x}".format(pc))
+                print("No more data areas from 0x{0:x}".format(processor.PC))
                 has_data = False
                 pass
             if prev == "(32-bit)":
-                bl=get_bl(pc+2, opcode, bytes_to_halfword(code, pc))+"\n"
-                print("{0:08x} {1:04x} {1:016b} {2}".format(pc,
-                                                            bytes_to_halfword(code, pc),
+                bl=get_bl(processor.PC+2, opcode, bytes_to_halfword(code, processor.PC))+"\n"
+                print("{0:08x} {1:04x} {1:016b} {2}".format(processor.PC,
+                                                            bytes_to_halfword(code, processor.PC),
                                                             bl),
                         file=out_file)
 
                 prev=""
             else:
-                opcode=bytes_to_halfword(code, pc)
-                prev=disassemble(pc, opcode)
+                opcode=bytes_to_halfword(code, processor.PC)
+                prev=disassemble(processor, opcode)
                 # mnemonic starts with b for branch or an nop (probable high byte of data)
                 # add newline to clarify blocks
                 if prev[0] == 'b' or prev.startswith('nop'):
                     prev += "\n"
-                print("{0:08x} {1:04x} {1:016b} {2}".format(pc,
+                print("{0:08x} {1:04x} {1:016b} {2}".format(processor.PC,
                                                             opcode,
                                                             prev),
                     file= out_file)
