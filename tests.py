@@ -9,12 +9,22 @@ def re_to_match1(instr, op1):
 def re_to_match2_ind(instr, op1, op2, ind):
     return "{} *{}, *\[{}, \#{}\].*".format(instr, op1, op2, ind)
 
+def re_to_match3(instr, op1, op2, op3):
+    return "{} *{}, *{}, *{}.*".format(instr, op1, op2, op3)
+
 class test():
     def test_bn(self):       
         # 00000106 e793 1110011110010011 b.n	30
         result = rp2040.disassemble(0x106, 0xe793)
         assert re.match(re_to_match1("b.n", "30"), result)
 
+    def test_add_pc(self):       
+        #326:	a325      	add	r3, pc, #148	; (adr r3, 3bc <clz6_table>)
+        #1010001100100101 101000
+        result = rp2040.disassemble(0x326, 0xa325)
+        assert re.match(re_to_match3("add", "r3", "pc", "#148"), result)
+        
+        
     def test_ldr1(self):    
         # fe:	680a  0110100000001010 011010 	ldr	r2, [r1, #0]
         result = rp2040.disassemble(0xfe, 0x680a)

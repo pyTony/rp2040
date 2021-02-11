@@ -372,9 +372,7 @@ def disassemble(pc, halfword):
         return "A5-82 {0:04b} {1:03b}".format(*ops)
     elif bits(5, 1, opc) == 0b10101:
         #page A6-102
-        #326:	a325      	add	r3, pc, #148	; (adr r3, 3bc <clz6_table>)
-        #1010001100100101 101000    
-        return "add r{0}, sp, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
+         return "add r{0}, sp, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
     elif bits(5, 2, opc) == 0b1011:
         opc=bits(11, 5, halfword)
         if opc < 0b100:
