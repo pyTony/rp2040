@@ -444,10 +444,9 @@ def get_bl(pc, ins1, ins2):
         return "msr {}, r{}".format(sysR[sysM], ins1 & 0b111)
     return "To be implemented"
 
-def disassemble_bootrom():
+def get_bootrom():
     HEXFILE = "./bootrom.hex"
-    output = "my_bootrom.s"
-
+ 
     # specifying the regions of data, not instructions, partial list here use find with .word to extract from
     # disassebled file, this misses the text and halfword data for simplicity
     # (0x,0x), 
@@ -466,6 +465,11 @@ def disassemble_bootrom():
             (0x3402,0x3427), (0x3c94,0x3fff)]
 
     code = IntelHex(HEXFILE)
+    return code, data
+
+def disassemble_code(code, data):
+    output = "my_bootrom.s"
+
     # for blink.hex + 0x000000ee # looked from bootrom.dis
     start = code.minaddr() 
     # let's now do it all
@@ -518,6 +522,7 @@ def disassemble_bootrom():
                                                             opcode,
                                                             prev),
                     file= out_file)
+    return code, start
 
 if __name__ == "__main__":
-    disassemble_bootrom()
+    disassemble_code(*get_bootrom())
