@@ -4,13 +4,13 @@ import re
 import rp2040
 
 def re_to_match1(instr, op1):
-    return "{} *{} *".format(instr, op1)
+    return r"{} *{} *".format(instr, op1)
 
 def re_to_match2_ind(instr, op1, op2, ind):
-    return "{} *{}, *\[{}, \#{}\].*".format(instr, op1, op2, ind)
+    return r"{} *{}, *\[{}, \#{}\].*".format(instr, op1, op2, ind)
 
 def re_to_match3(instr, op1, op2, op3):
-    return "{} *{}, *{}, *{}.*".format(instr, op1, op2, op3)
+    return r"{} *{}, *{}, *{}.*".format(instr, op1, op2, op3)
 
 class test():
     def test_bn(self):       
