@@ -16,7 +16,7 @@ regs = ["r{}".format(n) for n in range(12)] + ['ip', 'sp','lr', 'pc']
 # MSP       The Main Stack pointer.                 8 = 0b00001:000
 # PSP       The Process Stack pointer.              9 = 0b00001:001
 # PRIMASK   Register to mask out configurable exceptions
-#           Raises the current priority to 0 when set to 1. This is a 1-bit register.       16 = 0b00010:000   
+#           Raises the current priority to 0 when set to 1. This is a 1-bit register.       16 = 0b00010:000
 # CONTROL   The CONTROL register, see The special-purpose CONTROL register on page B1-189.  20 = 0b00010:100
 ## ** ADD THE PRIMASK AND CONTROL HANDLING TO THIS VERSION **
 sysR = "ASPR IAPSR EAPSR XPSR NONE PSR EPSR IEPSR MSP PSP".split()
@@ -45,7 +45,7 @@ def bytes_to_halfword(mem, addr, bigendian=True):
 
 def bytes_to_word(mem, addr, bigendian=True):
     """ joins four bytes to halfword, default bigendian """
-    return (mem[addr]+mem[addr+1]*0x100+mem[addr+2]*0x10000+mem[addr+3]*0x1000000 if bigendian 
+    return (mem[addr]+mem[addr+1]*0x100+mem[addr+2]*0x10000+mem[addr+3]*0x1000000 if bigendian
             else 0x1000000*mem[addr] + 0x10000 *mem[addr+1] + 0x100 * mem[addr+2] + mem[addr+3])
 
 def get_register_list(halfword, reg):
@@ -134,15 +134,11 @@ def disassemble(processor, halfword):
         # 0x00 temporary, to catch e793, check later
         if bits(12, 11, halfword) == 0x10:
             return get_branch(processor.PC, halfword)
-        elif bits(12, 11, halfword) != 0:
-            # not 32 bit
-            # e793 1110011110010011
-            return "(32-bit)"
         elif opc >> 1 == 0b011100:
-            imm11 = bits(10, 0, halfword) << 1
-            if imm11 & (1 << 11):
-                imm11=(imm11 & 0x7ff) - 0x800  # signed two's complement
+            imm11 = sign_extend(bits(10, 0, halfword) << 1, 12)
             return "b.n  {0:x}".format(processor.PC + imm11 + 4)
+        elif bits(12, 11, halfword) != 0:
+            return "(32-bit)"
         else:
             return "other {0:06b}".format(opc)
     elif halfword == 0xbf20:
@@ -153,8 +149,9 @@ def disassemble(processor, halfword):
         imm11=bits(10, 0, opc) << 1
         if imm11 & (1 << 11):
             imm11=(imm11 & 0x7ff) - 0x800  # signed two's complement
-
-        return "b.n  {0:x}".format(processor.PC + imm11 + 4)
+        pc = processor.PC + imm11 + 4
+        processor.PC = pc
+        return "b.n  {0:x}".format(pc + imm11 + 4)
 
     elif opc < 0b10000:
         opc=bits(13, 9, halfword)  # also bit 9
@@ -180,7 +177,7 @@ def disassemble(processor, halfword):
                 # A6-135
                 return "lsls  {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), get_imm5(halfword))
         elif opc == 0b001 :
-           # A6-137
+            # A6-137
             lsrs = get_imm5(halfword)
             lsrs = lsrs or 32 # zero becomes 32
             return "lsrs  {0}, #{1}".format(', '.join('r%i' % n for n in two_reg), lsrs)
@@ -257,13 +254,7 @@ def disassemble(processor, halfword):
             return "cmp {}, {}".format(m, n)
 
         opc >>= 1  # discard last bit
-        if halfword < 0b100000:
-            # MOVS A5-140
-            # setting flags, if simulating
-            # not entered any time in bootrom
-            setflag=True
-            return "MOVS A5-140"
-        elif halfword >> 8 == 0b1000110:
+        if halfword >> 8 == 0b1000110:
             m=regs[(bits(7, 7, halfword) << 3) + bits(2, 0, halfword)]
             n=regs[bits(6, 3, halfword)]
             instr = "mov  {}, {}".format(m, n)
@@ -273,23 +264,18 @@ def disassemble(processor, halfword):
             # 00xx    Add Registers          ADD (register) on page A6-102
             rdn, rm=get_two_registers(halfword)
             rdn += bits(7, 7, halfword) << 3
-            if rdn == 0b1011 or rm == 0b1011:
-                return "SEE ADD (SP plus register)"
+            if rdn == rm == 15:
+                return "UNPREDICTABLE"
             else:
-                if rdn == rm == 15:
-                    return "UNPREDICTABLE"
-                else:
-                    return "adds r{}, r{}".format(rdn, rm)
-            return "adds unrecognized"
+                return "adds r{}, r{}".format(rdn, rm)
         elif opc == 0b111:
             # 110x    Branch and Exchange    blx on page A6-114
             return "blx  r{}".format(bits(6, 3, halfword))
         elif bits(15, 7, halfword) == 0b010001110:
             # 00000134 4730 0100011100110000 010001 bx	r6 ; A6-115
             r = bits(6, 3, halfword)
-            instr = "bx lr" if r == 14 else "bx r{}".format(r)
-            return instr
-            
+            return "bx {}".format(regs[r])
+
         return "A5-81 {0:04b}".format(opc)
     elif bits(5, 1, opc) == 0b01001:
         # ee:	4873   0100100001110011 010010 	ldr	r0, [pc, #460]	; (2bc <async_task_worker_thunk+0x14>)
@@ -369,11 +355,11 @@ def disassemble(processor, halfword):
             return "ldr r{}, [sp, #{}]".format(bits(10,8,halfword), get_imm8(halfword)<<2)
         elif ops == (0b1001, 0b010):
             return "str r{}, [sp, #{}]".format(bits(10,8,halfword), get_imm8(halfword)<<2)
-          
+
         return "A5-82 {0:04b} {1:03b}".format(*ops)
     elif bits(5, 1, opc) == 0b10101:
         #page A6-102
-         return "add r{0}, sp, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
+        return "add r{0}, sp, #{1} ; #{1:0x}".format(get_one_register(halfword), get_imm8(halfword) << 2 )
     elif bits(5, 2, opc) == 0b1011:
         opc=bits(11, 5, halfword)
         if opc < 0b100:
@@ -393,7 +379,7 @@ def disassemble(processor, halfword):
                      0b001010: "uxth", 0b001011: "uxtb",
                      0b101000: "rev r{}, r{}".format(*get_two_registers(halfword)),
                      0b101001: "revsh r{}, r{}".format(*get_two_registers(halfword)),
-                     0b111101: "sev", 
+                     0b111101: "sev",
                      0b111000: "bkpt 0x{:04x}".format(get_imm8(halfword)<<2)}
             try:
                 return codes[opc]
@@ -447,19 +433,19 @@ def get_bl(pc, ins1, ins2):
 
 def get_bootrom():
     HEXFILE = "./bootrom.hex"
- 
+
     # specifying the regions of data, not instructions, partial list here use find with .word to extract from
     # disassebled file, this misses the text and halfword data for simplicity
-    # (0x,0x), 
-    data = [(0,0x18), (0x50, 0xed), (0x190, 0x2a4), (0x2b2, 0x2d4), (0x3a6,0x448), 
-            (0x458,0x45b), (0x468, 0x46f), (0x492,0x497), (0x4f4, 0x4ff), 
+    # (0x,0x),
+    data = [(0,0x18), (0x50, 0xed), (0x190, 0x2a4), (0x2b2, 0x2d4), (0x3a6,0x448),
+            (0x458,0x45b), (0x468, 0x46f), (0x492,0x497), (0x4f4, 0x4ff),
             (0x578, 0x57b), (0x594, 0x59b), (0x5f0, 0x5f3), (0x6e4, 0x6ef),
             (0x740, 0x743), (0xdcc, 0xdeb), (0xe50, 0xe57), (0xe8c, 0xe93),
             (0xec4, 0xecb), (0xeec, 0xef7), (0xf34, 0xf43), (0xf98, 0xfb3), (0x1028, 0x102f),
             (0x1188,0x11b7), (0x13d0, 0x1403), (0x146c,0x1473), (0x14a8,0x14af), (0x14fc, 0x14ff),
-            (0x15fa4, 0x15c3), (0x15fc, 0x1607),(0x162c, 0x162f), (0x169c, 0x16af), (0x16f4, 0x170b), 
-            (0x1724, 0x1727), (0x1770, 0x1777),(0x17dc, 0x17df), 
-            (0x1864,0x1867), (0x1ae0,0x1b97), (0x1ba4,0x1ba7), (0x1c3c,0x1c47), (0x1db0,0x1dcc), 
+            (0x15fa4, 0x15c3), (0x15fc, 0x1607),(0x162c, 0x162f), (0x169c, 0x16af), (0x16f4, 0x170b),
+            (0x1724, 0x1727), (0x1770, 0x1777),(0x17dc, 0x17df),
+            (0x1864,0x1867), (0x1ae0,0x1b97), (0x1ba4,0x1ba7), (0x1c3c,0x1c47), (0x1db0,0x1dcc),
             (0x1df4,0x1e07), (0x20b4,0x20df),(0x2154,0x2167),(0x22c8,0x22fb),(0x2324,0x232f),(0x2378,0x237b),
             (0x23c0,0x23c3), (0x23f0,0x23f3), (0x2498,0x249f), (0x24c0,0x24c7), (0x24e4,0x24e7), (0x2598,0x25b3),
             (0x25cc,0x25d7), (0x2754,0x2757), (0x2adc,0x2b63), (0x2e40,0x2e53), (0x2fb8,0x2fbb), (0x3112,0x3117),
@@ -475,7 +461,7 @@ def disassemble_code(code, data):
 
     processor = Processor()
     # for blink.hex + 0x000000ee # looked from bootrom.dis
-    start = code.minaddr() 
+    start = code.minaddr()
     # let's now do it all
     num_instructions = code.maxaddr() - code.minaddr() + 1
 
