@@ -17,10 +17,10 @@ def re_to_match3(instr, op1, op2, op3):
     return r"{} *{}, *{}, *{}.*".format(instr, op1, op2, op3)
 
 class test():
-    def disassemble(self, pc, opc):
+    def disassemble(self, pc, opc, opc2=None):
         self.PC = pc
-        return rp2040.disassemble(self, opc)
-    
+        return rp2040.get_32bit(self, opc, opc2) if opc2 else rp2040.disassemble(self, opc)
+  
     def test_bn(self):       
         # 00000106 e793 1110011110010011 b.n	30
         result = self.disassemble(0x106, 0xe793)
@@ -106,8 +106,11 @@ class test():
         assert re.match(re_to_match2_reglist("ldmia", "r4", "r1, r3"), result)
         
     def test_mrs(self):
-        #1664:	f3ef 8410 	mrs	r4, PRIMASK
-        pass
+        #1664:	1111001111101111 1000010000010000 f3ef 8410 	mrs	r4, PRIMASK
+        result = self.disassemble(0x1664, 0xf3ef)
+        assert result=="(32-bit)"
+        result = self.disassemble(0x1666, 0xf3ef, 0x8410)
+        print(result)
             
     def run(self):
         for fn in dir(self):

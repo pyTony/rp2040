@@ -4,23 +4,24 @@ from intelhex import IntelHex
 cond = "eq ne cs cc mi pl vs vc hi ls ge lt gt le".split() + [""]
 regs = ["r{}".format(n) for n in range(12)] + ['ip', 'sp','lr', 'pc']
 
-
+regs = ["r{}".format(r) for r in range(12)] + 'ip lr sp pc'.split()
 # APSR      The flags from previous instructions.   0 = 0b00000:000
 # IAPSR     A composite of IPSR and APSR.           1 = 0b00000:001
 # EAPSR     A composite of EPSR and APSR.           2 = 0b00000:010
-# XPSR      A composite of all three PSR registers. 3 = 0b00000:011
+# XPSR      A composite of all three PSR registers. 3 = 0b00000:011I
 # PSR       The Interrupt status register.          5 = 0b00000:101
 # EPSR      The execution status register.bb.
 #           The EPSR bitfield exhibits RAZ behavior.6 = 0b00000:110
 # IEPSR     A composite of IPSR and EPSR.           7 = 0b00000:111
 # MSP       The Main Stack pointer.                 8 = 0b00001:000
 # PSP       The Process Stack pointer.              9 = 0b00001:001
-# PRIMASK   Register to mask out configurable exceptions
-#           Raises the current priority to 0 when set to 1. This is a 1-bit register.       16 = 0b00010:000
-# CONTROL   The CONTROL register, see The special-purpose CONTROL register on page B1-189.  20 = 0b00010:100
-## ** ADD THE PRIMASK AND CONTROL HANDLING TO THIS VERSION **
-sysR = "ASPR IAPSR EAPSR XPSR NONE PSR EPSR IEPSR MSP PSP".split()
 
+# was APSR instead of PRIMASK, but changed for matching the disassembly
+# POSSIBLY WRONG
+# PRIMASK   Register to mask out configurable exceptions.cc.
+#           Raises the current priority to 0 when set to 1.
+#           This is a 1-bit register.               16 = 0b00010:000
+sysR = "APSR IAPSR EAPSR XPSR NONE PSR EPSR IEPSR MSP PSP".split()
 
 def get_opcode(instruction):
     """ highest 6 bits 15...10
@@ -349,7 +350,8 @@ def disassemble(processor, halfword):
         elif opc < 0b1000:
             return "sub r{0}, sp, #{1}".format(bits(10,8,halfword), get_imm8(halfword)<<2)
         elif opc == 0b0110011:
-            return "cps"
+            # b672      	cpsid	i
+            return "cps" + ("id" if bits(4, 4, halfword) else "ie") + "  i"
         elif bits(11, 9, halfword) == 0b010:
             return "push {%s}" % ', '.join(get_register_list(halfword, 'lr'))
         elif bits(11, 9, halfword) == 0b110:
@@ -388,26 +390,59 @@ def disassemble(processor, halfword):
         return "Not recognized"
 
 
-def get_bl(pc, ins1, ins2):
-    op1, op2=bits(10, 4, ins1), bits(14, 12, ins2)
+def get_32bit(self, ins1, ins2):
+    pc = self.PC
+    op1, op2 = bits(10, 4, ins1), bits(14, 12, ins2)
     # A5-85
     if op2 & 0b101 == 0b101:
         # bl A6-113
-        s=bits(10, 10, ins1)
-        imm10=bits(9, 0, ins1)
-        imm12=bits(10, 0, ins2) << 1
-        addr=(s << 22) + (imm10 << 12) + imm12
+        s = bits(10, 10, ins1)
+        imm10 = bits(9, 0, ins1)
+        imm12 = bits(10, 0, ins2) << 1
+        addr = (s << 22) + (imm10 << 12) + imm12
         if s:
-            addr=sign_extend(addr, 23)  # signed two's complement
+            addr = sign_extend(addr, 23)  # signed two's complement
         return "bl   {:x}".format(pc+addr)
-    elif ins1 >> 4 == 0b111100111000:
+    elif ins1 >> 4 == 0xf38:
         # Move to Special Register from ARM Register
+        #
         # 11c:	1111001110000010  1000100000001000 f382 8808 	msr	MSP, r2
-        # Binary value shown split into the fields used in the instruction operation pseudocode,
+        # Binary value shown split into the fields used
+        # in the instruction operation pseudocode,
         # SYSm<7:3>:SYSm<2:0>.
-         # -Reserved.Other values
-        sysM=ins2 & 0xf
-        return "msr {}, r{}".format(sysR[sysM], ins1 & 0b111)
+        # PRIMASK   Register to mask out configurable exceptions
+        # .cc.      Raises the current priority to 0 when set to 1. This is a 1-bit register.16 = 0b00010:000
+        # CONTROL   is a 1-bit register.16 = 0b00010:000
+        # CONTROL   The CONTROL register, see The special-purpose CONTROL register on page B1-189.20 = 0b00010:100
+        # -Reserved.Other values
+        #
+        # mistake to fix
+        # 00000bfa 8810 1000100000010000 111100 msr ASPR, r5
+        # should be      msr	PRIMA38SK, r5
+        #
+        ins2 &= 0xff
+        if ins2 < 0x10:
+            reg = sysR[ins2]
+        elif ins2 == 16:
+            reg = "PRIMASK"
+        elif ins2 == 20:
+            reg = "CONTROL"
+        return "msr {}, r{}".format(reg, ins1 & 0b111)
+    # 1664:	f3ef 8410 	mrs	r4, PRIMASK
+    elif ins1 == 0xf3ef:
+        r = bits(11, 8, ins2)
+        ins2 &= 0xff
+        if ins2 < 0x10:
+            reg = sysR[ins2]
+        elif ins2 == 16:
+            reg = "PRIMASK"
+        elif ins2 == 20:
+            reg = "CONTROL"
+        return "mrs r{}, {}".format(r, reg)
+    # 1664:	f3ef 8410 	mrs	r4, PRIMASK
+   # 2112:	f3bf 8f5f 	dmb	sy
+    elif ins1 == 0xf3bf and ins2 >> 4 == 0x8f5f >> 4:
+        return "dmb sy"
     return "To be implemented"
 
 def get_bootrom():
@@ -428,7 +463,7 @@ def get_bootrom():
             (0x1df4,0x1e07), (0x20b4,0x20df),(0x2154,0x2167),(0x22c8,0x22fb),(0x2324,0x232f),(0x2378,0x237b),
             (0x23c0,0x23c3), (0x23f0,0x23f3), (0x2498,0x249f), (0x24c0,0x24c7), (0x24e4,0x24e7), (0x2598,0x25b3),
             (0x25cc,0x25d7), (0x2754,0x2757), (0x2adc,0x2b63), (0x2e40,0x2e53), (0x2fb8,0x2fbb), (0x3112,0x3117),
-            (0x3402,0x3427), (0x3c94,0x3fff)]
+            (0x3402,0x3427), (0x3a38, 0x3b43), (0x3bd6, 0x3bdf), (0x3c94,0x3fff)]
 
     code = IntelHex(HEXFILE)
     return code, data
@@ -473,10 +508,12 @@ def disassemble_code(code, data):
                 has_data = False
                 pass
             if prev == "(32-bit)":
-                bl=get_bl(processor.PC+2, opcode, bytes_to_halfword(code, processor.PC))+"\n"
+                processor.PC+=2
+                res=get_32bit(processor, opcode, bytes_to_halfword(code, processor.PC-2))+"\n"
+                processor.PC-=2
                 print("{0:08x} {1:04x} {1:016b} {2}".format(processor.PC,
                                                             bytes_to_halfword(code, processor.PC),
-                                                            bl),
+                                                            res),
                         file=out_file)
 
                 prev=""
