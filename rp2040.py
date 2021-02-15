@@ -112,29 +112,11 @@ def get_opA_opB(halfword):
     return bits(15, 12, halfword), bits(11, 9, halfword)
 
 
-def get_branch(pc, halfword):
-    op1, op2 = bits(10, 4, halfword), bits(14, 12, halfword)
-    if op2 > 2:
-        return "Branch with link ; A5-85"
-    else:
-        op2 >>= 1
-        if op2 == 0b011100:
-            return "Move to special register on page B4-266"
-        elif op2 == 0b011101:
-            return "Miscellaneous control instructions on page A5-86"
-        elif op2 == 0b011111:
-            return "UDF"  # a6-171
-        else:
-            return "UNRECOGNIZED INSTRUCTION ; {0:016b}".format(halfword)
-
-
 def disassemble(processor, halfword):
     opc = get_opcode(halfword)
     if opc & 0b111000 == 0b111000:
         # 0x00 temporary, to catch e793, check later
-        if bits(12, 11, halfword) == 0x10:
-            return get_branch(processor.PC, halfword)
-        elif opc >> 1 == 0b011100:
+        if opc >> 1 == 0b011100:
             imm11 = sign_extend(bits(10, 0, halfword) << 1, 12)
             return "b.n  {0:x}".format(processor.PC + imm11 + 4)
         elif bits(12, 11, halfword) != 0:
@@ -392,7 +374,6 @@ def disassemble(processor, halfword):
     elif bits(5, 1, opc) == 0b11001:
         register_list = get_register_list(halfword, 'lr')
         excl = "!" if register_list[-1]=='lr' else ""
-        register_list = register_list[:-1]
         return "ldmia r%i%s, {%s}" % (get_one_register(halfword), excl,  ', '.join(register_list))
     elif bits(5, 2, opc) == 0b1101:
         # B on page A6-110 case one
@@ -413,8 +394,6 @@ def get_bl(pc, ins1, ins2):
     if op2 & 0b101 == 0b101:
         # bl A6-113
         s=bits(10, 10, ins1)
-
-        j1, j2=bits(13, 13, ins2), bits(11, 11, ins2)
         imm10=bits(9, 0, ins1)
         imm12=bits(10, 0, ins2) << 1
         addr=(s << 22) + (imm10 << 12) + imm12
@@ -439,8 +418,8 @@ def get_bootrom():
     # (0x,0x),
     data = [(0,0x18), (0x50, 0xed), (0x190, 0x2a4), (0x2b2, 0x2d4), (0x3a6,0x448),
             (0x458,0x45b), (0x468, 0x46f), (0x492,0x497), (0x4f4, 0x4ff),
-            (0x578, 0x57b), (0x594, 0x59b), (0x5f0, 0x5f3), (0x6e4, 0x6ef),
-            (0x740, 0x743), (0xdcc, 0xdeb), (0xe50, 0xe57), (0xe8c, 0xe93),
+            (0x578, 0x57b), (0x594, 0x59b), (0x5f0, 0x5f3), (0x6e4, 0x6ef), 
+            (0x740, 0x743), (0xa78, 0xaa7), (0xdcc, 0xdeb), (0xe50, 0xe57), (0xe8c, 0xe93),
             (0xec4, 0xecb), (0xeec, 0xef7), (0xf34, 0xf43), (0xf98, 0xfb3), (0x1028, 0x102f),
             (0x1188,0x11b7), (0x13d0, 0x1403), (0x146c,0x1473), (0x14a8,0x14af), (0x14fc, 0x14ff),
             (0x15fa4, 0x15c3), (0x15fc, 0x1607),(0x162c, 0x162f), (0x169c, 0x16af), (0x16f4, 0x170b),

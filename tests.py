@@ -9,6 +9,10 @@ def re_to_match1(instr, op1):
 def re_to_match2_ind(instr, op1, op2, ind):
     return r"{} *{}, *\[{}, \#{}\].*".format(instr, op1, op2, ind)
 
+def re_to_match2_reglist(instr, op1, reglist):
+    return r"{0} *{1}, *".format(instr, op1) + "\{" + reglist + "\} *"
+
+
 def re_to_match3(instr, op1, op2, op3):
     return r"{} *{}, *{}, *{}.*".format(instr, op1, op2, op3)
 
@@ -96,6 +100,15 @@ class test():
         result =  self.disassemble(0x134a, 0x9702)
         assert re.match(re_to_match2_ind("str", "r7", "sp", "8"), result)
     
+    def test_ldmia(self):
+        #1662:	cc0a 1100110000001010 ldmia r4, {r1, r3}
+        result = self.disassemble(0x1662, 0xcc0a)
+        assert re.match(re_to_match2_reglist("ldmia", "r4", "r1, r3"), result)
+        
+    def test_mrs(self):
+        #1664:	f3ef 8410 	mrs	r4, PRIMASK
+        pass
+            
     def run(self):
         for fn in dir(self):
             if fn.startswith('test_'):
