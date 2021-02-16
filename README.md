@@ -8,14 +8,4 @@ Thank you to Wokwi! (https://www.youtube.com/channel/UCXjWweOkccNu1WeFPkXIBXw, h
 
 (For my other Python work in past when I was daniweb moderator see https://www.daniweb.com/members/734700/trustytony)
 
-UPDATE: Now working with Pico bootrom and found potential problem with disassembler:
-
-00000fce 884b 1000100001001011 100010 lsrs	r6, r1, #31
-
-This does not make sense to me
-         
-However online http://shell-storm.org/online/Online-Assembler-and-Disassembler/?opcodes=884b&arch=arm-t&endianness=big&dis_with_addr=True&dis_with_raw=True&dis_with_ins=True#disassembly
-
-88 4B    ldrh r3, [r1, #2]
-
-This looks correct! So I implemented this.
+UPDATE: Now working with Pico bootrom and found potential problem with disassembler, but finally I had accidently changed the line in disassembly.
