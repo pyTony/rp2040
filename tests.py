@@ -1,4 +1,4 @@
-#import pytest # have to learn how to use pytest
+import pytest # have to learn how to use pytest
 import re
 
 import rp2040
@@ -121,5 +121,5 @@ class test():
                 except AssertionError as e:
                     print("\n----- {:>20} FAILED ----".format(fn))
                     print(e)
-
-test().run()
+if __name__ == "__main__":
+    test().run()
