@@ -39,7 +39,7 @@ class test():
         assert re.match(re_to_match2_ind("ldr", "r2", "r1", "0"), result)
         
     def test_regs(self):    
-        assert rp2040.regs[13:] == ['sp','lr', 'pc']
+        assert rp2040.regs[13:] == ['lr','sp', 'pc']
 
     def test_ldr_sp_imm1(self):
         #1c36:	9d01 1001110100000001      ldr	r5, [sp, #4] ; ops 1001 110
@@ -110,7 +110,7 @@ class test():
         result = self.disassemble(0x1664, 0xf3ef)
         assert result=="(32-bit)"
         result = self.disassemble(0x1666, 0xf3ef, 0x8410)
-        print(result)
+        assert re.match(" *mrs *r4, *PRIMASK *", result)
             
     def run(self):
         for fn in dir(self):

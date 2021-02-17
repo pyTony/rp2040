@@ -468,8 +468,7 @@ def get_bootrom():
     code = IntelHex(HEXFILE)
     return code, data
 
-def disassemble_code(code, data):
-    output = "my_bootrom.s"
+def disassemble_code(code, data,  output="disassembly.s"):
     class Processor():
         pass  # dummy before implementing processor
 
@@ -531,4 +530,4 @@ def disassemble_code(code, data):
     return code, start
 
 if __name__ == "__main__":
-    disassemble_code(*get_bootrom())
+    disassemble_code(*get_bootrom(), "my_bootrom.s")
