@@ -2,8 +2,6 @@ from intelhex import IntelHex
 
 
 cond = "eq ne cs cc mi pl vs vc hi ls ge lt gt le".split() + [""]
-regs = ["r{}".format(n) for n in range(12)] + ['ip', 'sp','lr', 'pc']
-
 regs = ["r{}".format(r) for r in range(12)] + 'ip lr sp pc'.split()
 # APSR      The flags from previous instructions.   0 = 0b00000:000
 # IAPSR     A composite of IPSR and APSR.           1 = 0b00000:001

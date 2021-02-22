@@ -121,5 +121,6 @@ class test():
                 except AssertionError as e:
                     print("\n----- {:>20} FAILED ----".format(fn))
                     print(e)
+
 if __name__ == "__main__":
     test().run()
