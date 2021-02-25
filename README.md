@@ -9,3 +9,5 @@ Thank you to Wokwi! (https://www.youtube.com/channel/UCXjWweOkccNu1WeFPkXIBXw, h
 (For my other Python work in past when I was daniweb moderator see https://www.daniweb.com/members/734700/trustytony)
 
 UPDATE: Now working with Pico bootrom and found potential problem with disassembler, but finally I had accidently changed the line in disassembly.
+
+To continue with UF2 files instead of hex files, I plan to use code from https://github.com/microsoft/uf2
